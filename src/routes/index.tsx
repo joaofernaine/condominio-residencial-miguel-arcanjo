@@ -903,8 +903,8 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               </div>
             ) : (
               <ul className="mt-6 grid gap-3 md:grid-cols-2">
-                {reservas.map((r) => {
-                  const uiStatus = RESERVA_DB_TO_UI[r.status];
+                {reservas.filter((r) => r.status !== "bloqueado").map((r) => {
+                  const uiStatus = RESERVA_DB_TO_UI[r.status as Exclude<typeof r.status, "bloqueado">];
                   const spaceName = RESERVATION_SPACES.find((s) => s.id === r.espaco)?.name ?? r.espaco;
                   return (
                     <li key={r.id} className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
@@ -916,6 +916,11 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           Data: <span className="font-mono">{r.data_inicio.split("-").reverse().join("/")}</span>
                         </p>
+                        {r.observacoes && (
+                          <p className="mt-1 text-xs text-muted-foreground italic">
+                            Observações: {r.observacoes}
+                          </p>
+                        )}
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${RESERVATION_STATUS_STYLES[uiStatus]}`}>
                             {uiStatus === "Pendente" && "PENDENTE — Aguardando aprovação"}
@@ -933,6 +938,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                   );
                 })}
               </ul>
+
             )}
           </div>
         </div>
