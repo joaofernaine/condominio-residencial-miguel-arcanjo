@@ -25,6 +25,8 @@ import {
   Mail,
   MapPin,
   Phone,
+  Plus,
+
   Search,
   Send,
   Sparkles,
