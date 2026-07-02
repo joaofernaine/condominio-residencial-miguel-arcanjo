@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   Bell,
@@ -434,53 +434,41 @@ function FirstAccessDialog({
 // ================== AGENCY ADMIN (toggle Síndica ⇄ Morador) ==================
 
 function AgencyAdminView({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
-  const [view, setView] = useState<"sindica" | "morador">("sindica");
+  const [adminView, setAdminView] = useState<"sindica" | "morador">("sindica");
   const sindicaProfile = useMemo<Profile>(() => ({ ...profile, role: "sindica" }), [profile]);
   const moradorProfile = useMemo<Profile>(() => ({ ...profile, role: "morador" }), [profile]);
 
-  return (
-    <div className="relative">
-      <div className="sticky top-0 z-40 border-b border-[color:var(--gold)]/40 bg-primary text-primary-foreground">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-2 text-xs">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-[color:var(--gold)]" />
-            <span className="font-semibold uppercase tracking-widest text-[color:var(--gold)]">
-              Admin Agência
-            </span>
-            <span className="text-primary-foreground/70">— visualização de teste</span>
-          </div>
-          <div className="inline-flex overflow-hidden rounded-full border border-white/20 bg-white/10">
-            <button
-              type="button"
-              onClick={() => setView("sindica")}
-              className={`px-4 py-1.5 text-xs font-medium transition ${
-                view === "sindica"
-                  ? "bg-[color:var(--gold)] text-primary"
-                  : "text-primary-foreground/85 hover:bg-white/10"
-              }`}
-            >
-              Visão Síndica
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("morador")}
-              className={`px-4 py-1.5 text-xs font-medium transition ${
-                view === "morador"
-                  ? "bg-[color:var(--gold)] text-primary"
-                  : "text-primary-foreground/85 hover:bg-white/10"
-              }`}
-            >
-              Visão Morador
-            </button>
-          </div>
-        </div>
-      </div>
-      {view === "sindica" ? (
-        <AdminDashboard profile={sindicaProfile} onLogout={onLogout} />
-      ) : (
-        <ResidentDashboard profile={moradorProfile} onLogout={onLogout} />
-      )}
+  const toggle = (
+    <div className="inline-flex items-center overflow-hidden rounded-full border border-input bg-background shadow-sm">
+      <button
+        type="button"
+        onClick={() => setAdminView("sindica")}
+        className={`px-3 py-1.5 text-xs font-medium transition ${
+          adminView === "sindica"
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted"
+        }`}
+      >
+        Visão Síndica
+      </button>
+      <button
+        type="button"
+        onClick={() => setAdminView("morador")}
+        className={`px-3 py-1.5 text-xs font-medium transition ${
+          adminView === "morador"
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted"
+        }`}
+      >
+        Visão Morador
+      </button>
     </div>
+  );
+
+  return adminView === "sindica" ? (
+    <AdminDashboard profile={sindicaProfile} onLogout={onLogout} adminAgenciaToggle={toggle} />
+  ) : (
+    <ResidentDashboard profile={moradorProfile} onLogout={onLogout} adminAgenciaToggle={toggle} />
   );
 }
 
@@ -629,7 +617,7 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
 
 // ================== RESIDENT DASHBOARD ==================
 
-function ResidentDashboard({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
   const [pautasLoading, setPautasLoading] = useState(true);
@@ -761,6 +749,7 @@ function ResidentDashboard({ profile, onLogout }: { profile: Profile; onLogout: 
                 </span>
               )}
             </div>
+            {adminAgenciaToggle}
             <Button onClick={onLogout} variant="outline" size="sm" className="rounded-full">
               <LogOut className="h-4 w-4" /> Sair
             </Button>
@@ -1110,7 +1099,7 @@ const STATUS_STYLES: Record<FinancialStatus, string> = {
 
 type MoradorInfo = { id: string; nome_completo: string; unidade: string };
 
-function AdminDashboard({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [pautasLoading, setPautasLoading] = useState(true);
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
@@ -1234,6 +1223,7 @@ function AdminDashboard({ profile, onLogout }: { profile: Profile; onLogout: () 
               </div>
               <span className="font-medium capitalize">{profile.nome_completo}</span>
             </div>
+            {adminAgenciaToggle}
             <Button onClick={onLogout} variant="outline" size="sm" className="rounded-full">
               <LogOut className="h-4 w-4" /> Sair
             </Button>
