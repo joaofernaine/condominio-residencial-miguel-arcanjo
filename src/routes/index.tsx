@@ -1898,7 +1898,8 @@ function ReservationsManagement({
   const [reason, setReason] = useState("");
 
   const pending = reservas.filter((r) => r.status === "pendente");
-  const processed = reservas.filter((r) => r.status !== "pendente");
+  const processed = reservas.filter((r) => r.status === "aprovada" || r.status === "recusada");
+  const bloqueios = reservas.filter((r) => r.status === "bloqueado");
 
   const confirmReject = (id: string) => {
     if (!reason.trim()) return;
