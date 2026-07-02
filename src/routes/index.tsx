@@ -80,6 +80,7 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { Toaster } from "@/components/ui/sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/lib/supabase";
 import {
   type FinancialStatus,
