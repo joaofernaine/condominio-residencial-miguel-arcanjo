@@ -7,7 +7,7 @@ import type { FinancialStatus, ReservationStatus } from "@/lib/mocks";
 
 // ---------- TYPES (banco real) ----------
 
-export type Role = "sindica" | "morador";
+export type Role = "sindica" | "morador" | "admin_agencia";
 
 export type Profile = {
   id: string;
