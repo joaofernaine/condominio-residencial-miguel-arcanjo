@@ -761,6 +761,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                 </span>
               )}
             </div>
+            {adminAgenciaToggle}
             <Button onClick={onLogout} variant="outline" size="sm" className="rounded-full">
               <LogOut className="h-4 w-4" /> Sair
             </Button>
@@ -1234,6 +1235,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
               </div>
               <span className="font-medium capitalize">{profile.nome_completo}</span>
             </div>
+            {adminAgenciaToggle}
             <Button onClick={onLogout} variant="outline" size="sm" className="rounded-full">
               <LogOut className="h-4 w-4" /> Sair
             </Button>
