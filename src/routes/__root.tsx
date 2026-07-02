@@ -77,14 +77,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Portal Condomínio Inteligente" },
+      { title: "Portal Condomínio Residencial Miguel Arcanjo" },
       {
         name: "description",
         content:
           "Portal oficial do condomínio: avisos, financeiro, votações, reservas de espaços e acompanhamento de obras.",
       },
-      { name: "author", content: "Portal Condomínio Inteligente" },
-      { property: "og:title", content: "Portal Condomínio Inteligente" },
+      { name: "author", content: "Portal Condomínio Residencial Miguel Arcanjo" },
+      { property: "og:title", content: "Portal Condomínio Residencial Miguel Arcanjo" },
       {
         property: "og:description",
         content: "Um condomínio moderno, seguro e transparente.",
