@@ -1233,6 +1233,30 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
     }
   };
 
+  const handleDeleteBloqueio = async (id: string) => {
+    try {
+      await removerReserva(id);
+      toast.success("Bloqueio removido.");
+      loadReservas();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao remover bloqueio.");
+    }
+  };
+
+  const handleDeleteMorador = async () => {
+    if (!deleteMoradorId) return;
+    try {
+      await removerMorador(deleteMoradorId);
+      toast.success("Morador removido.");
+      setDeleteMoradorId(null);
+      loadFinanceiro();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao remover morador.");
+    }
+  };
+
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
