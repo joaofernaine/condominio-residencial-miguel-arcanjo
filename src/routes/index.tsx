@@ -1462,7 +1462,6 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         condominioId={profile.condominio_id}
         onCreated={loadPautas}
       />
-      />
       <EditObraDialog
         obra={editObra}
         onOpenChange={(v) => { if (!v) setEditObra(null); }}
