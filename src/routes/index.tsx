@@ -117,7 +117,11 @@ import {
   fetchObras,
   fetchAtualizacoesObra,
   inserirAtualizacaoObra,
+  criarMorador,
+  criarObra,
+  criarPauta,
 } from "@/lib/portal-data";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
