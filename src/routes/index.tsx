@@ -893,7 +893,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
             </div>
           </div>
 
-          <ReservationModule onRequest={handleRequestReservation} />
+          <ReservationModule onRequest={handleRequestReservation} ocupacoes={ocupacoes} />
 
           <div className="mt-12">
             <div className="flex items-end justify-between gap-4">
