@@ -1419,7 +1419,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
           ) : (
             <>
               <div className="mt-10">
-                <ObrasTabs obras={obras} />
+                <ObrasTabs obras={obras} admin onEdit={setEditObra} onChanged={loadObras} />
               </div>
               <div className="mt-10 space-y-4">
                 <h3 className="font-display text-lg font-semibold">Publicar atualização</h3>
