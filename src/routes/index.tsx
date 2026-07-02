@@ -1345,15 +1345,21 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       {/* Votações */}
       <section className="bg-background py-16">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-              <Vote className="h-3.5 w-3.5" /> Votações
-            </span>
-            <h2 className="mt-3 text-3xl font-medium md:text-4xl">Resultados em tempo real</h2>
-            <p className="mt-4 text-muted-foreground">
-              Visível apenas para a síndica. Os moradores não enxergam os parciais.
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Vote className="h-3.5 w-3.5" /> Votações
+              </span>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Resultados em tempo real</h2>
+              <p className="mt-4 text-muted-foreground">
+                Visível apenas para a síndica. Os moradores não enxergam os parciais.
+              </p>
+            </div>
+            <Button onClick={() => setNewPautaOpen(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Nova pauta
+            </Button>
           </div>
+
 
           <div className="mt-8 space-y-4">
             {pautasLoading ? (
