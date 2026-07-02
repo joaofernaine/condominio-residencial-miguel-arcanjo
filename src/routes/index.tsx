@@ -1365,9 +1365,17 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                           </span>
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
-                            <History className="h-3.5 w-3.5" /> Histórico
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
+                              <History className="h-3.5 w-3.5" /> Histórico
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
+                              <Pencil className="h-3.5 w-3.5" /> Editar
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
+                              <Trash2 className="h-3.5 w-3.5" /> Excluir
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
