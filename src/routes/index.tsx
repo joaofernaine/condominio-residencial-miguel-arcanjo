@@ -2249,13 +2249,12 @@ function ReservationModule({
                   : isSelected
                     ? "border-primary bg-primary text-primary-foreground shadow-[var(--shadow-soft)]"
                     : "border-border bg-card hover:-translate-y-0.5 hover:border-primary/50";
-            return (
+            const button = (
               <button
                 key={cell.iso}
                 type="button"
                 disabled={disabled}
                 onClick={() => setSelectedDate(cell.iso)}
-                title={isBlocked ? oc?.observacoes ?? "Bloqueado" : isReserved ? "Reservado" : ""}
                 className={`group relative flex aspect-square flex-col items-center justify-center rounded-lg border text-center transition-all ${baseClass}`}
               >
                 <span className="font-display text-sm font-semibold sm:text-base">{cell.day}</span>
@@ -2263,8 +2262,8 @@ function ReservationModule({
                   <span className="mt-0.5 text-[9px] font-medium text-[color:var(--sage)]">Livre</span>
                 )}
                 {isBlocked && (
-                  <span className="mt-0.5 line-clamp-1 max-w-full px-0.5 text-[8px] font-semibold uppercase tracking-tight">
-                    {oc?.observacoes ?? "Manutenção"}
+                  <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-tight">
+                    Manutenção
                   </span>
                 )}
                 {isReserved && (
@@ -2272,6 +2271,19 @@ function ReservationModule({
                 )}
               </button>
             );
+            if (isBlocked && oc?.observacoes) {
+              return (
+                <TooltipProvider key={cell.iso} delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>{button}</TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      {oc.observacoes}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            }
+            return button;
           })}
         </div>
 
