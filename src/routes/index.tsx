@@ -2161,7 +2161,17 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
 
 // ================== OBRAS ==================
 
-function ObrasTabs({ obras }: { obras: ObraRow[] }) {
+function ObrasTabs({
+  obras,
+  admin = false,
+  onEdit,
+  onChanged,
+}: {
+  obras: ObraRow[];
+  admin?: boolean;
+  onEdit?: (o: ObraRow) => void;
+  onChanged?: () => void;
+}) {
   const completed = obras.filter((o) => o.status === "concluido" || o.progresso_atual >= 100);
   const inProgress = obras.filter((o) => o.status === "em_andamento");
   const planned = obras.filter((o) => o.status === "planejado");
@@ -2175,13 +2185,13 @@ function ObrasTabs({ obras }: { obras: ObraRow[] }) {
       </TabsList>
 
       <TabsContent value="completed" className="mt-10">
-        {completed.length === 0 ? <EmptyState>Nenhuma obra concluída.</EmptyState> : <ObraTimeline items={completed} icon={CheckCircle2} accent="var(--sage)" />}
+        {completed.length === 0 ? <EmptyState>Nenhuma obra concluída.</EmptyState> : <ObraTimeline items={completed} icon={CheckCircle2} accent="var(--sage)" admin={admin} onEdit={onEdit} onChanged={onChanged} />}
       </TabsContent>
       <TabsContent value="inProgress" className="mt-10">
-        {inProgress.length === 0 ? <EmptyState>Nenhuma obra em andamento.</EmptyState> : <ObraTimeline items={inProgress} icon={Hammer} accent="var(--gold)" withUpdates />}
+        {inProgress.length === 0 ? <EmptyState>Nenhuma obra em andamento.</EmptyState> : <ObraTimeline items={inProgress} icon={Hammer} accent="var(--gold)" withUpdates admin={admin} onEdit={onEdit} onChanged={onChanged} />}
       </TabsContent>
       <TabsContent value="planned" className="mt-10">
-        {planned.length === 0 ? <EmptyState>Nenhuma obra planejada.</EmptyState> : <ObraTimeline items={planned} icon={Clock} accent="var(--primary)" />}
+        {planned.length === 0 ? <EmptyState>Nenhuma obra planejada.</EmptyState> : <ObraTimeline items={planned} icon={Clock} accent="var(--primary)" admin={admin} onEdit={onEdit} onChanged={onChanged} />}
       </TabsContent>
     </Tabs>
   );
@@ -2192,11 +2202,17 @@ function ObraTimeline({
   icon: Icon,
   accent,
   withUpdates = false,
+  admin = false,
+  onEdit,
+  onChanged,
 }: {
   items: ObraRow[];
   icon: React.ComponentType<{ className?: string }>;
   accent: string;
   withUpdates?: boolean;
+  admin?: boolean;
+  onEdit?: (o: ObraRow) => void;
+  onChanged?: () => void;
 }) {
   return (
     <ol className="relative space-y-6 border-l-2 border-dashed border-border pl-8 md:grid md:grid-cols-3 md:items-start md:gap-6 md:space-y-0 md:border-0 md:pl-0">
@@ -2221,7 +2237,19 @@ function ObraTimeline({
             </div>
           </div>
 
-          {withUpdates && <ObraUpdatesGallery obraId={item.id} accent={accent} />}
+          {withUpdates && <ObraUpdatesGallery obraId={item.id} accent={accent} admin={admin} />}
+
+          {admin && onEdit && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-5 h-8 gap-1.5 rounded-full text-xs"
+              onClick={() => onEdit(item)}
+            >
+              <Pencil className="h-3.5 w-3.5" /> Editar
+            </Button>
+          )}
 
           <span className="absolute right-5 top-5 text-xs font-mono text-muted-foreground/60">0{i + 1}</span>
         </li>
@@ -2230,16 +2258,34 @@ function ObraTimeline({
   );
 }
 
-function ObraUpdatesGallery({ obraId, accent }: { obraId: string; accent: string }) {
+function ObraUpdatesGallery({ obraId, accent, admin = false }: { obraId: string; accent: string; admin?: boolean }) {
   const [items, setItems] = useState<ObraAtualizacaoRow[] | null>(null);
   const [active, setActive] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     fetchAtualizacoesObra(obraId).then((r) => {
       setItems(r);
       setActive(Math.max(0, r.length - 1));
     }).catch(() => setItems([]));
   }, [obraId]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Remover esta atualização?")) return;
+    setDeletingId(id);
+    try {
+      await removerAtualizacaoObra(id);
+      toast.success("Atualização removida.");
+      reload();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao remover atualização.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (!items) return <div className="mt-6"><Skeleton className="h-32 w-full rounded-xl" /></div>;
   if (items.length === 0) {
