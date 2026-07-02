@@ -1888,11 +1888,15 @@ function ReservationsManagement({
   loading,
   onApprove,
   onReject,
+  onBlock,
+  onDeleteBloqueio,
 }: {
   reservas: ReservaComMorador[];
   loading: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string, motivo: string) => void;
+  onBlock: () => void;
+  onDeleteBloqueio: (id: string) => void;
 }) {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
