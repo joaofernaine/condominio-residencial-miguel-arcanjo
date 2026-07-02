@@ -617,7 +617,7 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
 
 // ================== RESIDENT DASHBOARD ==================
 
-function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: React.ReactNode }) {
+function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
   const [pautasLoading, setPautasLoading] = useState(true);
