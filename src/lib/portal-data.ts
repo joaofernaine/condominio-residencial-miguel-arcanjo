@@ -1,0 +1,300 @@
+/**
+ * Camada de dados do Portal — tipos, mapeadores e queries contra Supabase.
+ * Todos os SELECTs são filtrados por `condominio_id` do profile logado.
+ */
+import { supabase } from "@/lib/supabase";
+import type { FinancialStatus, ReservationStatus } from "@/lib/mocks";
+
+// ---------- TYPES (banco real) ----------
+
+export type Role = "sindica" | "morador";
+
+export type Profile = {
+  id: string;
+  auth_user_id: string;
+  condominio_id: string;
+  nome_completo: string;
+  unidade: string;
+  role: Role;
+  primeiro_acesso: boolean;
+};
+
+export type PautaRow = {
+  id: string;
+  condominio_id: string;
+  titulo: string;
+  descricao: string | null;
+  status: string;
+  data_inicio: string | null;
+  data_fim: string | null;
+};
+
+export type VotoRow = {
+  id: string;
+  pauta_id: string;
+  morador_id: string;
+  voto: "sim" | "nao";
+  created_at?: string;
+};
+
+export type ReservaRow = {
+  id: string;
+  condominio_id: string;
+  morador_id: string;
+  espaco: string;
+  data_inicio: string;
+  data_fim: string;
+  status: "pendente" | "aprovada" | "recusada";
+  motivo_recusa: string | null;
+  created_at?: string;
+};
+
+export type HistoricoRow = {
+  id: string;
+  condominio_id: string;
+  unidade_id: string;
+  ano: number;
+  mes: number; // 1..12
+  status: "pago" | "pendente" | "atrasado";
+  valor: number | null;
+};
+
+export type ObraRow = {
+  id: string;
+  condominio_id: string;
+  titulo: string;
+  descricao: string | null;
+  progresso_atual: number;
+  status: "concluido" | "em_andamento" | "planejado";
+};
+
+export type ObraAtualizacaoRow = {
+  id: string;
+  obra_id: string;
+  descricao: string | null;
+  progresso: number;
+  foto_url: string | null;
+  created_at: string;
+};
+
+// ---------- MAPEADORES DE STATUS ----------
+
+export const RESERVA_DB_TO_UI: Record<ReservaRow["status"], ReservationStatus> = {
+  pendente: "Pendente",
+  aprovada: "Confirmada",
+  recusada: "Recusada",
+};
+
+export const HISTORICO_DB_TO_UI: Record<HistoricoRow["status"], FinancialStatus> = {
+  pago: "Em dia",
+  pendente: "Pendente",
+  atrasado: "Atrasado",
+};
+
+export const HISTORICO_UI_TO_DB: Record<FinancialStatus, HistoricoRow["status"]> = {
+  "Em dia": "pago",
+  Pendente: "pendente",
+  Atrasado: "atrasado",
+};
+
+// ---------- ESPAÇOS RESERVÁVEIS (hardcoded por enquanto) ----------
+
+export const RESERVATION_SPACES = [
+  { id: "salao", name: "Salão de Festas" },
+  { id: "churrasqueira", name: "Churrasqueira" },
+  { id: "quadra", name: "Quadra Esportiva" },
+];
+
+// ---------- AUTH / PROFILE ----------
+
+export async function fetchProfileByAuthUser(authUserId: string) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as Profile | null;
+}
+
+export async function markFirstAccessComplete(authUserId: string) {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ primeiro_acesso: false })
+    .eq("auth_user_id", authUserId);
+  if (error) throw error;
+}
+
+// ---------- PAUTAS / VOTOS ----------
+
+export async function fetchPautasAtivas(condominioId: string) {
+  const { data, error } = await supabase
+    .from("pautas")
+    .select("*")
+    .eq("condominio_id", condominioId)
+    .eq("status", "ativa");
+  if (error) throw error;
+  return (data ?? []) as PautaRow[];
+}
+
+export async function fetchMeusVotos(condominioId: string, moradorId: string) {
+  // votos do morador nas pautas do condominio
+  const { data, error } = await supabase
+    .from("votos")
+    .select("pauta_id, morador_id, voto, pautas!inner(condominio_id)")
+    .eq("morador_id", moradorId)
+    .eq("pautas.condominio_id", condominioId);
+  if (error) throw error;
+  return (data ?? []) as unknown as { pauta_id: string; voto: "sim" | "nao" }[];
+}
+
+export async function registrarVoto(pautaId: string, moradorId: string, voto: "sim" | "nao") {
+  const { error } = await supabase
+    .from("votos")
+    .insert({ pauta_id: pautaId, morador_id: moradorId, voto });
+  if (error) throw error;
+}
+
+export async function fetchVotosDePauta(pautaId: string) {
+  const { data, error } = await supabase
+    .from("votos")
+    .select("id, voto, created_at, morador:profiles!votos_morador_id_fkey(nome_completo, unidade)")
+    .eq("pauta_id", pautaId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as unknown as {
+    id: string;
+    voto: "sim" | "nao";
+    created_at: string;
+    morador: { nome_completo: string; unidade: string } | null;
+  }[];
+}
+
+// ---------- RESERVAS ----------
+
+export type ReservaComMorador = ReservaRow & {
+  morador: { nome_completo: string; unidade: string } | null;
+};
+
+export async function fetchReservasDoCondominio(condominioId: string) {
+  const { data, error } = await supabase
+    .from("reservas")
+    .select("*, morador:profiles!reservas_morador_id_fkey(nome_completo, unidade)")
+    .eq("condominio_id", condominioId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as ReservaComMorador[];
+}
+
+export async function fetchMinhasReservas(moradorId: string) {
+  const { data, error } = await supabase
+    .from("reservas")
+    .select("*")
+    .eq("morador_id", moradorId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ReservaRow[];
+}
+
+export async function criarReserva(input: {
+  condominio_id: string;
+  morador_id: string;
+  espaco: string;
+  data_inicio: string;
+  data_fim: string;
+}) {
+  const { error } = await supabase.from("reservas").insert({ ...input, status: "pendente" });
+  if (error) throw error;
+}
+
+export async function aprovarReserva(id: string) {
+  const { error } = await supabase
+    .from("reservas")
+    .update({ status: "aprovada", motivo_recusa: null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function recusarReserva(id: string, motivo: string) {
+  const { error } = await supabase
+    .from("reservas")
+    .update({ status: "recusada", motivo_recusa: motivo })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// ---------- HISTÓRICO FINANCEIRO ----------
+
+export async function fetchHistoricoCondominio(condominioId: string) {
+  const { data, error } = await supabase
+    .from("historico_financeiro")
+    .select("*")
+    .eq("condominio_id", condominioId);
+  if (error) throw error;
+  return (data ?? []) as HistoricoRow[];
+}
+
+export async function fetchMeuHistorico(unidadeId: string, ano: number) {
+  const { data, error } = await supabase
+    .from("historico_financeiro")
+    .select("*")
+    .eq("unidade_id", unidadeId)
+    .eq("ano", ano);
+  if (error) throw error;
+  return (data ?? []) as HistoricoRow[];
+}
+
+export async function atualizarHistorico(id: string, status: HistoricoRow["status"]) {
+  const { error } = await supabase
+    .from("historico_financeiro")
+    .update({ status })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function fetchMoradoresDoCondominio(condominioId: string) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, nome_completo, unidade, role")
+    .eq("condominio_id", condominioId)
+    .eq("role", "morador");
+  if (error) throw error;
+  return (data ?? []) as { id: string; nome_completo: string; unidade: string; role: Role }[];
+}
+
+// ---------- OBRAS ----------
+
+export async function fetchObras(condominioId: string) {
+  const { data, error } = await supabase
+    .from("obras")
+    .select("*")
+    .eq("condominio_id", condominioId)
+    .order("status");
+  if (error) throw error;
+  return (data ?? []) as ObraRow[];
+}
+
+export async function fetchAtualizacoesObra(obraId: string) {
+  const { data, error } = await supabase
+    .from("obra_atualizacoes")
+    .select("*")
+    .eq("obra_id", obraId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ObraAtualizacaoRow[];
+}
+
+export async function inserirAtualizacaoObra(input: {
+  obra_id: string;
+  descricao: string;
+  progresso: number;
+  foto_url?: string | null;
+}) {
+  const { error: insertErr } = await supabase.from("obra_atualizacoes").insert(input);
+  if (insertErr) throw insertErr;
+  const { error: updErr } = await supabase
+    .from("obras")
+    .update({ progresso_atual: input.progresso })
+    .eq("id", input.obra_id);
+  if (updErr) throw updErr;
+}
