@@ -25,6 +25,7 @@ import {
   Mail,
   MapPin,
   Phone,
+  Pencil,
   Plus,
 
   Search,
@@ -32,6 +33,8 @@ import {
   Sparkles,
   Store,
   Tag,
+  Trash2,
+  Upload,
   User,
   Vote,
   ThumbsUp,
