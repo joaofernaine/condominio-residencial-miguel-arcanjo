@@ -90,7 +90,7 @@ export type ObraAtualizacaoRow = {
 
 // ---------- MAPEADORES DE STATUS ----------
 
-export const RESERVA_DB_TO_UI: Record<ReservaRow["status"], ReservationStatus> = {
+export const RESERVA_DB_TO_UI: Record<Exclude<ReservaStatus, "bloqueado">, ReservationStatus> = {
   pendente: "Pendente",
   aprovada: "Confirmada",
   recusada: "Recusada",
