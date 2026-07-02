@@ -310,6 +310,23 @@ export async function fetchMoradoresDoCondominio(condominioId: string) {
   return (data ?? []) as { id: string; nome_completo: string; unidade: string; role: Role }[];
 }
 
+export async function atualizarMorador(
+  id: string,
+  patch: { nome_completo: string; unidade: string },
+) {
+  const { error } = await supabase.from("profiles").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function removerMorador(id: string) {
+  const { error } = await supabase
+    .from("profiles")
+    .delete()
+    .eq("id", id)
+    .eq("role", "morador");
+  if (error) throw error;
+}
+
 // ---------- OBRAS ----------
 
 export async function fetchObras(condominioId: string) {
