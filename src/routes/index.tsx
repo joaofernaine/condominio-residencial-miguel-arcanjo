@@ -80,6 +80,7 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { Toaster } from "@/components/ui/sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/lib/supabase";
 import {
   type FinancialStatus,
@@ -140,13 +141,13 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Portal Condomínio Inteligente — Bem-vindo" },
+      { title: "Portal Condomínio Residencial Miguel Arcanjo — Bem-vindo" },
       {
         name: "description",
         content:
-          "Portal oficial do Portal Condomínio Inteligente. Avisos públicos, infraestrutura e acesso ao portal do morador.",
+          "Portal oficial do Portal Condomínio Residencial Miguel Arcanjo. Avisos públicos, infraestrutura e acesso ao portal do morador.",
       },
-      { property: "og:title", content: "Portal Condomínio Inteligente" },
+      { property: "og:title", content: "Portal Condomínio Residencial Miguel Arcanjo" },
       {
         property: "og:description",
         content: "Um condomínio moderno, seguro e transparente.",
@@ -518,7 +519,7 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
           <a href="#top" className="flex items-center gap-2 text-primary-foreground">
             <Building2 className="h-6 w-6" />
-            <span className="font-display text-lg font-semibold tracking-tight">Condomínio Inteligente</span>
+            <span className="font-display text-lg font-semibold tracking-tight">Condomínio Residencial Miguel Arcanjo</span>
           </a>
           <div className="hidden items-center gap-8 text-sm text-primary-foreground/85 md:flex">
             <a href="#sobre" className="hover:text-primary-foreground">Sobre</a>
@@ -541,7 +542,7 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
             </span>
             <h1 className="mt-6 font-display text-5xl font-medium leading-[1.05] sm:text-6xl md:text-7xl">
               Bem-vindo ao<br />
-              <span className="italic text-[color:var(--gold)]">Portal Condomínio Inteligente</span>
+              <span className="italic text-[color:var(--gold)]">Portal Condomínio Residencial Miguel Arcanjo</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg text-primary-foreground/85">
               Conforto, segurança e convivência em harmonia com a natureza.
@@ -624,7 +625,7 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-sm text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            <span>© {new Date().getFullYear()} Portal Condomínio Inteligente</span>
+            <span>© {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo</span>
           </div>
           <p>Portal oficial de moradores</p>
         </div>
@@ -757,7 +758,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
             <Building2 className="h-6 w-6 text-primary" />
-            <span className="font-display text-lg font-semibold tracking-tight">Condomínio Inteligente</span>
+            <span className="font-display text-lg font-semibold tracking-tight">Condomínio Residencial Miguel Arcanjo</span>
             <span className="ml-3 hidden rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground sm:inline">
               Portal do Morador
             </span>
@@ -1018,7 +1019,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
 
       <footer className="border-t border-border bg-background py-8">
         <div className="mx-auto max-w-7xl px-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Portal Condomínio Inteligente · Portal restrito a moradores
+          © {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo · Portal restrito a moradores
         </div>
       </footer>
     </>
@@ -1276,7 +1277,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
             <Building2 className="h-6 w-6 text-primary" />
-            <span className="font-display text-lg font-semibold tracking-tight">Condomínio Inteligente</span>
+            <span className="font-display text-lg font-semibold tracking-tight">Condomínio Residencial Miguel Arcanjo</span>
             <span className="ml-3 inline-flex items-center gap-1 rounded-full bg-[color:var(--gold)]/20 px-2.5 py-0.5 text-xs font-semibold text-[color:var(--gold)]">
               <ShieldCheck className="h-3 w-3" /> Painel da Síndica
             </span>
@@ -1496,7 +1497,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
 
       <footer className="border-t border-border bg-background py-8">
         <div className="mx-auto max-w-7xl px-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Portal Condomínio Inteligente · Painel administrativo
+          © {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo · Painel administrativo
         </div>
       </footer>
 
@@ -2248,13 +2249,12 @@ function ReservationModule({
                   : isSelected
                     ? "border-primary bg-primary text-primary-foreground shadow-[var(--shadow-soft)]"
                     : "border-border bg-card hover:-translate-y-0.5 hover:border-primary/50";
-            return (
+            const button = (
               <button
                 key={cell.iso}
                 type="button"
                 disabled={disabled}
                 onClick={() => setSelectedDate(cell.iso)}
-                title={isBlocked ? oc?.observacoes ?? "Bloqueado" : isReserved ? "Reservado" : ""}
                 className={`group relative flex aspect-square flex-col items-center justify-center rounded-lg border text-center transition-all ${baseClass}`}
               >
                 <span className="font-display text-sm font-semibold sm:text-base">{cell.day}</span>
@@ -2262,8 +2262,8 @@ function ReservationModule({
                   <span className="mt-0.5 text-[9px] font-medium text-[color:var(--sage)]">Livre</span>
                 )}
                 {isBlocked && (
-                  <span className="mt-0.5 line-clamp-1 max-w-full px-0.5 text-[8px] font-semibold uppercase tracking-tight">
-                    {oc?.observacoes ?? "Manutenção"}
+                  <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-tight">
+                    Manutenção
                   </span>
                 )}
                 {isReserved && (
@@ -2271,6 +2271,19 @@ function ReservationModule({
                 )}
               </button>
             );
+            if (isBlocked && oc?.observacoes) {
+              return (
+                <TooltipProvider key={cell.iso} delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>{button}</TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      {oc.observacoes}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            }
+            return button;
           })}
         </div>
 
@@ -2401,7 +2414,7 @@ function ObraTimeline({
             </div>
           </div>
 
-          {withUpdates && <ObraUpdatesGallery obraId={item.id} accent={accent} admin={admin} />}
+          {withUpdates && <ObraUpdatesGallery obraId={item.id} accent={accent} admin={admin} onChanged={onChanged} />}
 
           {admin && onEdit && (
             <Button
@@ -2422,7 +2435,7 @@ function ObraTimeline({
   );
 }
 
-function ObraUpdatesGallery({ obraId, accent, admin = false }: { obraId: string; accent: string; admin?: boolean }) {
+function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obraId: string; accent: string; admin?: boolean; onChanged?: () => void }) {
   const [items, setItems] = useState<ObraAtualizacaoRow[] | null>(null);
   const [active, setActive] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -2443,6 +2456,7 @@ function ObraUpdatesGallery({ obraId, accent, admin = false }: { obraId: string;
       await removerAtualizacaoObra(id);
       toast.success("Atualização removida.");
       reload();
+      onChanged?.();
     } catch (err) {
       console.error(err);
       toast.error("Erro ao remover atualização.");
