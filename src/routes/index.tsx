@@ -1961,7 +1961,14 @@ function ReservationsManagement({
                       <TableRow>
                         <TableCell className="font-mono text-xs font-semibold">{r.morador?.unidade ?? "—"}</TableCell>
                         <TableCell>{r.morador?.nome_completo ?? "—"}</TableCell>
-                        <TableCell>{spaceName}</TableCell>
+                        <TableCell>
+                          {spaceName}
+                          {r.observacoes && (
+                            <p className="mt-0.5 text-[11px] italic text-muted-foreground">
+                              Obs.: {r.observacoes}
+                            </p>
+                          )}
+                        </TableCell>
                         <TableCell className="font-mono text-xs">
                           {r.data_inicio.split("-").reverse().join("/")}
                         </TableCell>
