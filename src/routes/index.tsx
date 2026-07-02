@@ -2038,10 +2038,39 @@ function ReservationsManagement({
             </TableBody>
           </Table>
         </div>
+
+        {/* Bloqueios ativos */}
+        <div className="mt-8">
+          <h3 className="font-display text-xl font-medium">Datas bloqueadas</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Bloqueios impedem novas reservas nesses dias.</p>
+          {bloqueios.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
+              Nenhuma data bloqueada.
+            </div>
+          ) : (
+            <ul className="mt-4 grid gap-2 md:grid-cols-2">
+              {bloqueios.map((b) => {
+                const spaceName = RESERVATION_SPACES.find((s) => s.id === b.espaco)?.name ?? b.espaco;
+                return (
+                  <li key={b.id} className="flex items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-3">
+                    <div className="min-w-0 flex-1 text-sm">
+                      <p className="font-semibold">{spaceName} · <span className="font-mono">{b.data_inicio.split("-").reverse().join("/")}</span></p>
+                      {b.observacoes && <p className="text-xs text-destructive">{b.observacoes}</p>}
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteBloqueio(b.id)}>
+                      <Trash2 className="h-3.5 w-3.5" /> Remover
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
     </section>
   );
 }
+
 
 // ================== RESERVATION MODULE (morador) ==================
 
