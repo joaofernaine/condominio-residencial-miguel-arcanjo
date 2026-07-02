@@ -1516,6 +1516,22 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         onOpenChange={(v) => { if (!v) setEditObra(null); }}
         onSaved={loadObras}
       />
+      <BlockDateDialog
+        open={blockOpen}
+        onOpenChange={setBlockOpen}
+        profile={profile}
+        onCreated={loadReservas}
+      />
+      <EditMoradorDialog
+        morador={editMorador}
+        onOpenChange={(v) => { if (!v) setEditMorador(null); }}
+        onSaved={loadFinanceiro}
+      />
+      <ConfirmDeleteMoradorDialog
+        open={deleteMoradorId !== null}
+        onOpenChange={(v) => { if (!v) setDeleteMoradorId(null); }}
+        onConfirm={handleDeleteMorador}
+      />
     </>
   );
 }
