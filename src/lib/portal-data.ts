@@ -267,7 +267,7 @@ export async function fetchMoradoresDoCondominio(condominioId: string) {
 export async function fetchObras(condominioId: string) {
   const { data, error } = await supabase
     .from("obras")
-    .select("*")
+    .select("id, condominio_id, titulo, descricao, progresso_atual, status")
     .eq("condominio_id", condominioId)
     .order("status");
   if (error) throw error;
@@ -277,7 +277,7 @@ export async function fetchObras(condominioId: string) {
 export async function fetchAtualizacoesObra(obraId: string) {
   const { data, error } = await supabase
     .from("obra_atualizacoes")
-    .select("*")
+    .select("id, obra_id, descricao, progresso, foto_url, created_at")
     .eq("obra_id", obraId)
     .order("created_at", { ascending: true });
   if (error) throw error;
