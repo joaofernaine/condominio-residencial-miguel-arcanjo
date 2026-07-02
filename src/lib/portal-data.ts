@@ -179,7 +179,7 @@ export type ReservaComMorador = ReservaRow & {
 export async function fetchReservasDoCondominio(condominioId: string) {
   const { data, error } = await supabase
     .from("reservas")
-    .select("*, morador:profiles!reservas_morador_id_fkey(nome_completo, unidade)")
+    .select("*, morador:profiles(nome_completo, unidade)")
     .eq("condominio_id", condominioId)
     .order("created_at", { ascending: false });
   if (error) throw error;
