@@ -248,6 +248,8 @@ function Index() {
       ) : profile && !showFirstAccess ? (
         profile.role === "sindica" ? (
           <AdminDashboard profile={profile} onLogout={handleLogout} />
+        ) : profile.role === "admin_agencia" ? (
+          <AgencyAdminView profile={profile} onLogout={handleLogout} />
         ) : (
           <ResidentDashboard profile={profile} onLogout={handleLogout} />
         )
