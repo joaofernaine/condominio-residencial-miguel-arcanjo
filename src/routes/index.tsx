@@ -2142,13 +2142,25 @@ function ReservationsManagement({
 
 function ReservationModule({
   onRequest,
+  ocupacoes,
 }: {
-  onRequest: (spaceId: string, spaceName: string, dateIso: string) => void;
+  onRequest: (spaceId: string, spaceName: string, dateIso: string, observacoes: string) => void;
+  ocupacoes: OcupacaoRow[];
 }) {
   const [selectedSpace, setSelectedSpace] = useState<string>(RESERVATION_SPACES[0]?.id ?? "");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [observacoes, setObservacoes] = useState("");
   const today = useMemo(() => new Date(), []);
   const [viewMonth, setViewMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
+
+  // Map iso -> ocupacao no espaço selecionado
+  const ocupacaoByIso = useMemo(() => {
+    const m = new Map<string, OcupacaoRow>();
+    ocupacoes
+      .filter((o) => o.espaco === selectedSpace)
+      .forEach((o) => m.set(o.data_inicio, o));
+    return m;
+  }, [ocupacoes, selectedSpace]);
 
   const monthGrid = useMemo(() => {
     const { year, month } = viewMonth;
@@ -2178,8 +2190,9 @@ function ReservationModule({
   const submit = () => {
     if (!space) return toast.error("Nenhum espaço configurado.");
     if (!selectedDate) return toast.error("Escolha uma data disponível.");
-    onRequest(space.id, space.name, selectedDate);
+    onRequest(space.id, space.name, selectedDate, observacoes);
     setSelectedDate(null);
+    setObservacoes("");
   };
 
   const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -2222,24 +2235,51 @@ function ReservationModule({
           {monthGrid.map((cell, idx) => {
             if (!cell) return <span key={`e-${idx}`} className="aspect-square" />;
             const isSelected = selectedDate === cell.iso;
-            const disabled = cell.past;
+            const oc = ocupacaoByIso.get(cell.iso);
+            const isBlocked = oc?.status === "bloqueado";
+            const isReserved = oc?.status === "aprovada";
+            const disabled = cell.past || isBlocked || isReserved;
+            const baseClass = cell.past
+              ? "cursor-not-allowed border-border bg-secondary/40 opacity-40"
+              : isBlocked
+                ? "cursor-not-allowed border-destructive/50 bg-destructive/10 text-destructive"
+                : isReserved
+                  ? "cursor-not-allowed border-[color:var(--gold)]/50 bg-[color:var(--gold)]/15 text-[color:var(--gold)]"
+                  : isSelected
+                    ? "border-primary bg-primary text-primary-foreground shadow-[var(--shadow-soft)]"
+                    : "border-border bg-card hover:-translate-y-0.5 hover:border-primary/50";
             return (
               <button
                 key={cell.iso}
                 type="button"
                 disabled={disabled}
                 onClick={() => setSelectedDate(cell.iso)}
-                className={`group relative flex aspect-square flex-col items-center justify-center rounded-lg border text-center transition-all ${
-                  cell.past ? "cursor-not-allowed border-border bg-secondary/40 opacity-40" : isSelected ? "border-primary bg-primary text-primary-foreground shadow-[var(--shadow-soft)]" : "border-border bg-card hover:-translate-y-0.5 hover:border-primary/50"
-                }`}
+                title={isBlocked ? oc?.observacoes ?? "Bloqueado" : isReserved ? "Reservado" : ""}
+                className={`group relative flex aspect-square flex-col items-center justify-center rounded-lg border text-center transition-all ${baseClass}`}
               >
                 <span className="font-display text-sm font-semibold sm:text-base">{cell.day}</span>
-                {!cell.past && !isSelected && (
+                {!cell.past && !isSelected && !isBlocked && !isReserved && (
                   <span className="mt-0.5 text-[9px] font-medium text-[color:var(--sage)]">Livre</span>
+                )}
+                {isBlocked && (
+                  <span className="mt-0.5 line-clamp-1 max-w-full px-0.5 text-[8px] font-semibold uppercase tracking-tight">
+                    {oc?.observacoes ?? "Manutenção"}
+                  </span>
+                )}
+                {isReserved && (
+                  <span className="mt-0.5 text-[8px] font-semibold uppercase">Reservado</span>
                 )}
               </button>
             );
           })}
+        </div>
+
+        {/* Legenda */}
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border border-border bg-card" /> Disponível</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border border-[color:var(--gold)]/50 bg-[color:var(--gold)]/15" /> Reservado</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border border-destructive/50 bg-destructive/10" /> <span className="text-destructive">Manutenção</span></span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border border-primary bg-primary" /> Selecionado</span>
         </div>
       </div>
 
@@ -2252,7 +2292,11 @@ function ReservationModule({
             {selectedDate ? selectedDate.split("-").reverse().join("/") : "Selecione um dia"}
           </p>
         </div>
-        <Button onClick={submit} size="lg" className="mt-auto w-full rounded-full" disabled={!selectedDate || !space}>
+        <div className="mt-4 space-y-2">
+          <Label htmlFor="rm-obs" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Observações (opcional)</Label>
+          <Textarea id="rm-obs" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Ex.: Aniversário, ~30 pessoas" rows={3} maxLength={280} />
+        </div>
+        <Button onClick={submit} size="lg" className="mt-6 w-full rounded-full" disabled={!selectedDate || !space}>
           <Send className="h-4 w-4" /> Solicitar reserva
         </Button>
         <p className="mt-3 text-center text-xs text-muted-foreground">
@@ -2262,6 +2306,7 @@ function ReservationModule({
     </div>
   );
 }
+
 
 // ================== STAT CARD ==================
 
