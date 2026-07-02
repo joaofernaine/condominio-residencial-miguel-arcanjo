@@ -1140,6 +1140,9 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const [newObraOpen, setNewObraOpen] = useState(false);
   const [newPautaOpen, setNewPautaOpen] = useState(false);
   const [editObra, setEditObra] = useState<ObraRow | null>(null);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [editMorador, setEditMorador] = useState<MoradorInfo | null>(null);
+  const [deleteMoradorId, setDeleteMoradorId] = useState<string | null>(null);
 
 
 
