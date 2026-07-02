@@ -1099,7 +1099,7 @@ const STATUS_STYLES: Record<FinancialStatus, string> = {
 
 type MoradorInfo = { id: string; nome_completo: string; unidade: string };
 
-function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: React.ReactNode }) {
+function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [pautasLoading, setPautasLoading] = useState(true);
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
