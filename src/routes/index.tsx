@@ -1266,15 +1266,21 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       {/* Inadimplência */}
       <section className="bg-secondary/40 py-16">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-              <Wallet className="h-3.5 w-3.5" /> Situação financeira
-            </span>
-            <h2 className="mt-3 text-3xl font-medium md:text-4xl">Unidades & cobranças</h2>
-            <p className="mt-4 text-muted-foreground">
-              Clique em uma linha para editar o histórico mensal ({currentYear}).
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Wallet className="h-3.5 w-3.5" /> Situação financeira
+              </span>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Unidades & cobranças</h2>
+              <p className="mt-4 text-muted-foreground">
+                Clique em uma linha para editar o histórico mensal ({currentYear}).
+              </p>
+            </div>
+            <Button onClick={() => setNewMoradorOpen(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Cadastrar morador
+            </Button>
           </div>
+
 
           <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
             <Table>
