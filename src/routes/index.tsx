@@ -2385,8 +2385,14 @@ function ObraUpdatesGallery({ obraId, accent, admin = false }: { obraId: string;
 function ObraUpdateForm({ obra, onSaved }: { obra: ObraRow; onSaved: () => void }) {
   const [descricao, setDescricao] = useState("");
   const [progresso, setProgresso] = useState<number>(obra.progresso_atual);
-  const [fotoUrl, setFotoUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const onPickFile = (f: File | null) => {
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2394,15 +2400,27 @@ function ObraUpdateForm({ obra, onSaved }: { obra: ObraRow; onSaved: () => void 
     if (progresso < 0 || progresso > 100) return toast.error("Progresso deve estar entre 0 e 100.");
     setSubmitting(true);
     try {
+      let fotoUrl: string | null = null;
+      if (file) {
+        try {
+          fotoUrl = await uploadObraFoto(obra.id, file);
+        } catch (upErr) {
+          console.error(upErr);
+          toast.error("Erro ao enviar a foto.");
+          setSubmitting(false);
+          return;
+        }
+      }
       await inserirAtualizacaoObra({
         obra_id: obra.id,
         descricao: descricao.trim(),
         progresso,
-        foto_url: fotoUrl.trim() || null,
+        foto_url: fotoUrl,
       });
       toast.success("Atualização publicada.");
       setDescricao("");
-      setFotoUrl("");
+      setFile(null);
+      setPreview(null);
       onSaved();
     } catch (err) {
       console.error(err);
@@ -2430,14 +2448,127 @@ function ObraUpdateForm({ obra, onSaved }: { obra: ObraRow; onSaved: () => void 
           <Input type="number" min={0} max={100} value={progresso} onChange={(e) => setProgresso(Number(e.target.value))} className="mt-1 h-10" />
         </div>
         <div>
-          <Label>Foto (URL, opcional)</Label>
-          <Input value={fotoUrl} onChange={(e) => setFotoUrl(e.target.value)} placeholder="https://…" className="mt-1 h-10" />
+          <Label htmlFor={`foto-${obra.id}`}>Foto (opcional)</Label>
+          <div className="mt-1 flex items-center gap-2">
+            <label
+              htmlFor={`foto-${obra.id}`}
+              className="inline-flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-secondary/40 px-3 text-xs font-medium text-muted-foreground transition hover:bg-secondary"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {file ? file.name.slice(0, 22) : "Selecionar imagem"}
+            </label>
+            <input
+              id={`foto-${obra.id}`}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+            />
+            {preview && (
+              <img src={preview} alt="Prévia" className="h-10 w-10 rounded-md object-cover" />
+            )}
+          </div>
         </div>
       </div>
       <Button type="submit" size="sm" className="mt-4 rounded-full" disabled={submitting}>
         {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Publicar atualização
       </Button>
     </form>
+  );
+}
+
+function EditObraDialog({
+  obra,
+  onOpenChange,
+  onSaved,
+}: {
+  obra: ObraRow | null;
+  onOpenChange: (v: boolean) => void;
+  onSaved: () => void;
+}) {
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [status, setStatus] = useState<ObraRow["status"]>("planejado");
+  const [progresso, setProgresso] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (obra) {
+      setTitulo(obra.titulo);
+      setDescricao(obra.descricao ?? "");
+      setStatus(obra.status);
+      setProgresso(obra.progresso_atual);
+    }
+  }, [obra]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!obra) return;
+    if (!titulo.trim()) return toast.error("Informe o título da obra.");
+    setSaving(true);
+    try {
+      await atualizarObra(obra.id, {
+        titulo: titulo.trim(),
+        descricao: descricao.trim(),
+        status,
+        progresso_atual: Math.max(0, Math.min(100, progresso)),
+      });
+      toast.success("Obra atualizada.");
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao atualizar obra.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!obra} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Editar obra</DialogTitle>
+          <DialogDescription>Atualize os dados da obra do condomínio.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="eo-titulo">Título</Label>
+            <Input id="eo-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="eo-desc">Descrição</Label>
+            <Textarea id="eo-desc" value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} />
+          </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={(v) => setStatus(v as ObraRow["status"])}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="planejado">Planejado</SelectItem>
+                <SelectItem value="em_andamento">Em andamento</SelectItem>
+                <SelectItem value="concluido">Concluído</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="eo-prog">Progresso atual (%)</Label>
+            <Input
+              id="eo-prog"
+              type="number"
+              min={0}
+              max={100}
+              value={progresso}
+              onChange={(e) => setProgresso(Number(e.target.value))}
+            />
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+            Salvar alterações
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
