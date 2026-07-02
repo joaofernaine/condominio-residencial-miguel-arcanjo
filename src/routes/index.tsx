@@ -2414,7 +2414,7 @@ function ObraTimeline({
             </div>
           </div>
 
-          {withUpdates && <ObraUpdatesGallery obraId={item.id} accent={accent} admin={admin} />}
+          {withUpdates && <ObraUpdatesGallery obraId={item.id} accent={accent} admin={admin} onChanged={onChanged} />}
 
           {admin && onEdit && (
             <Button
