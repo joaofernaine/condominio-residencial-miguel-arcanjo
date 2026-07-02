@@ -2342,24 +2342,39 @@ function ObraUpdatesGallery({ obraId, accent, admin = false }: { obraId: string;
       {items.length > 1 && (
         <div className="mt-3 grid grid-cols-3 gap-2">
           {items.map((m, i) => (
-            <button
+            <div
               key={m.id}
-              type="button"
-              onClick={() => setActive(i)}
               className={`group relative aspect-video overflow-hidden rounded-md border-2 bg-secondary transition-all ${i === active ? "border-primary shadow-[var(--shadow-soft)]" : "border-transparent opacity-70 hover:opacity-100"}`}
-              aria-label={`Ver foto da fase ${m.progresso}%`}
             >
-              {m.foto_url ? (
-                <img src={m.foto_url} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="absolute inset-0 grid place-items-center">
-                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                </span>
-              )}
-              <span className="absolute bottom-1 left-1 rounded px-1.5 py-0 text-[10px] font-bold text-white" style={{ backgroundColor: `color-mix(in oklab, #000 50%, transparent)` }}>
+              <button
+                type="button"
+                onClick={() => setActive(i)}
+                className="absolute inset-0 h-full w-full"
+                aria-label={`Ver foto da fase ${m.progresso}%`}
+              >
+                {m.foto_url ? (
+                  <img src={m.foto_url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="absolute inset-0 grid place-items-center">
+                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  </span>
+                )}
+              </button>
+              <span className="pointer-events-none absolute bottom-1 left-1 rounded px-1.5 py-0 text-[10px] font-bold text-white" style={{ backgroundColor: `color-mix(in oklab, #000 50%, transparent)` }}>
                 {m.progresso}%
               </span>
-            </button>
+              {admin && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(m.id)}
+                  disabled={deletingId === m.id}
+                  className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-destructive/90 text-destructive-foreground shadow transition hover:bg-destructive disabled:opacity-60"
+                  aria-label="Remover atualização"
+                >
+                  {deletingId === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}
