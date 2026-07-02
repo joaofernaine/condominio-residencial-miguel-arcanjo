@@ -1436,9 +1436,275 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
           © {new Date().getFullYear()} Portal Condomínio Inteligente · Painel administrativo
         </div>
       </footer>
+
+      <NewMoradorDialog
+        open={newMoradorOpen}
+        onOpenChange={setNewMoradorOpen}
+        condominioId={profile.condominio_id}
+        onCreated={loadFinanceiro}
+      />
+      <NewObraDialog
+        open={newObraOpen}
+        onOpenChange={setNewObraOpen}
+        condominioId={profile.condominio_id}
+        onCreated={loadObras}
+      />
+      <NewPautaDialog
+        open={newPautaOpen}
+        onOpenChange={setNewPautaOpen}
+        condominioId={profile.condominio_id}
+        onCreated={loadPautas}
+      />
     </>
   );
 }
+
+// ================== NEW MORADOR / OBRA / PAUTA DIALOGS ==================
+
+function NewMoradorDialog({
+  open,
+  onOpenChange,
+  condominioId,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  condominioId: string;
+  onCreated: () => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [unidade, setUnidade] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => { setNome(""); setEmail(""); setUnidade(""); };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim() || !unidade.trim()) {
+      toast.error("Preencha nome e unidade.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await criarMorador({
+        condominio_id: condominioId,
+        nome_completo: nome.trim(),
+        unidade: unidade.trim(),
+      });
+      toast.success("Morador cadastrado. Envie o convite por email quando o fluxo estiver ativo.");
+      reset();
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao cadastrar morador.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Cadastrar morador</DialogTitle>
+          <DialogDescription>
+            O morador receberá acesso ao portal quando o fluxo de convite por email for ativado.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="nm-nome">Nome completo</Label>
+            <Input id="nm-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nm-email">Email</Label>
+            <Input id="nm-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="opcional por enquanto" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nm-un">Unidade</Label>
+            <Input id="nm-un" value={unidade} onChange={(e) => setUnidade(e.target.value)} placeholder="Ex.: 101" required />
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Cadastrar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NewObraDialog({
+  open,
+  onOpenChange,
+  condominioId,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  condominioId: string;
+  onCreated: () => void;
+}) {
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [status, setStatus] = useState<ObraRow["status"]>("planejado");
+  const [progresso, setProgresso] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo.trim()) return toast.error("Informe o título da obra.");
+    setSaving(true);
+    try {
+      await criarObra({
+        condominio_id: condominioId,
+        titulo: titulo.trim(),
+        descricao: descricao.trim(),
+        status,
+        progresso_atual: Math.max(0, Math.min(100, progresso)),
+      });
+      toast.success("Obra cadastrada.");
+      setTitulo(""); setDescricao(""); setStatus("planejado"); setProgresso(0);
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao cadastrar obra.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Nova obra</DialogTitle>
+          <DialogDescription>Cadastre uma obra do condomínio.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="no-titulo">Título</Label>
+            <Input id="no-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="no-desc">Descrição</Label>
+            <Textarea id="no-desc" value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} />
+          </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={(v) => setStatus(v as ObraRow["status"])}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="planejado">Planejado</SelectItem>
+                <SelectItem value="em_andamento">Em andamento</SelectItem>
+                <SelectItem value="concluido">Concluído</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="no-prog">Progresso atual (%)</Label>
+            <Input
+              id="no-prog"
+              type="number"
+              min={0}
+              max={100}
+              value={progresso}
+              onChange={(e) => setProgresso(Number(e.target.value))}
+            />
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Cadastrar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NewPautaDialog({
+  open,
+  onOpenChange,
+  condominioId,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  condominioId: string;
+  onCreated: () => void;
+}) {
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo.trim() || !dataInicio || !dataFim) {
+      toast.error("Preencha título e datas.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await criarPauta({
+        condominio_id: condominioId,
+        titulo: titulo.trim(),
+        descricao: descricao.trim(),
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+      });
+      toast.success("Pauta cadastrada.");
+      setTitulo(""); setDescricao(""); setDataInicio(""); setDataFim("");
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao cadastrar pauta.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Nova pauta de votação</DialogTitle>
+          <DialogDescription>A pauta será criada com status "ativa".</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="np-titulo">Título</Label>
+            <Input id="np-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="np-desc">Descrição</Label>
+            <Textarea id="np-desc" value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="np-ini">Início</Label>
+              <Input id="np-ini" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="np-fim">Fim</Label>
+              <Input id="np-fim" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} required />
+            </div>
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Cadastrar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 // ================== POLL ADMIN CARD ==================
 
