@@ -642,6 +642,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
 
   const [reservas, setReservas] = useState<ReservaRow[]>([]);
   const [reservasLoading, setReservasLoading] = useState(true);
+  const [ocupacoes, setOcupacoes] = useState<OcupacaoRow[]>([]);
 
   const [obras, setObras] = useState<ObraRow[]>([]);
   const [obrasLoading, setObrasLoading] = useState(true);
@@ -670,14 +671,19 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
   const loadReservas = useCallback(async () => {
     setReservasLoading(true);
     try {
-      setReservas(await fetchMinhasReservas(profile.id));
+      const [minhas, ocs] = await Promise.all([
+        fetchMinhasReservas(profile.id),
+        fetchOcupacoesCondominio(profile.condominio_id),
+      ]);
+      setReservas(minhas);
+      setOcupacoes(ocs);
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar reservas.");
     } finally {
       setReservasLoading(false);
     }
-  }, [profile.id]);
+  }, [profile.id, profile.condominio_id]);
 
   const loadObras = useCallback(async () => {
     setObrasLoading(true);
