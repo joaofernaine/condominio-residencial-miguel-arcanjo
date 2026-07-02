@@ -37,6 +37,8 @@ export type VotoRow = {
   created_at?: string;
 };
 
+export type ReservaStatus = "pendente" | "aprovada" | "recusada" | "bloqueado";
+
 export type ReservaRow = {
   id: string;
   condominio_id: string;
@@ -44,9 +46,18 @@ export type ReservaRow = {
   espaco: string;
   data_inicio: string;
   data_fim: string;
-  status: "pendente" | "aprovada" | "recusada";
+  status: ReservaStatus;
   motivo_recusa: string | null;
+  observacoes: string | null;
   created_at?: string;
+};
+
+export type OcupacaoRow = {
+  id: string;
+  espaco: string;
+  data_inicio: string;
+  status: ReservaStatus;
+  observacoes: string | null;
 };
 
 export type HistoricoRow = {
