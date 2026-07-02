@@ -2841,3 +2841,186 @@ function PaymentHistoryDialog({
     </Dialog>
   );
 }
+
+// ================== BLOCK DATE / EDIT / DELETE MORADOR DIALOGS ==================
+
+function BlockDateDialog({
+  open,
+  onOpenChange,
+  profile,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  profile: Profile;
+  onCreated: () => void;
+}) {
+  const [espaco, setEspaco] = useState<string>(RESERVATION_SPACES[0]?.id ?? "");
+  const [data, setData] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => { setEspaco(RESERVATION_SPACES[0]?.id ?? ""); setData(""); setMotivo(""); };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!espaco || !data || !motivo.trim()) {
+      toast.error("Preencha espaço, data e motivo.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await criarBloqueio({
+        condominio_id: profile.condominio_id,
+        morador_id: profile.id,
+        espaco,
+        data,
+        motivo: motivo.trim(),
+      });
+      toast.success("Data bloqueada.");
+      reset();
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao bloquear data.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Bloquear data</DialogTitle>
+          <DialogDescription>
+            Impede novas reservas do espaço no dia informado.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="bl-espaco">Espaço</Label>
+            <Select value={espaco} onValueChange={setEspaco}>
+              <SelectTrigger id="bl-espaco"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {RESERVATION_SPACES.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bl-data">Data</Label>
+            <Input id="bl-data" type="date" value={data} onChange={(e) => setData(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bl-motivo">Motivo</Label>
+            <Input id="bl-motivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: Manutenção, evento do condomínio" required maxLength={120} />
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+            Bloquear
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditMoradorDialog({
+  morador,
+  onOpenChange,
+  onSaved,
+}: {
+  morador: MoradorInfo | null;
+  onOpenChange: (v: boolean) => void;
+  onSaved: () => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [unidade, setUnidade] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (morador) { setNome(morador.nome_completo); setUnidade(morador.unidade); }
+  }, [morador]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!morador) return;
+    if (!nome.trim() || !unidade.trim()) {
+      toast.error("Preencha nome e unidade.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await atualizarMorador(morador.id, {
+        nome_completo: nome.trim(),
+        unidade: unidade.trim(),
+      });
+      toast.success("Morador atualizado.");
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao atualizar morador.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={morador !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Editar morador</DialogTitle>
+          <DialogDescription>Atualize nome e unidade.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="em-nome">Nome completo</Label>
+            <Input id="em-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="em-un">Unidade</Label>
+            <Input id="em-un" value={unidade} onChange={(e) => setUnidade(e.target.value)} required />
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+            Salvar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfirmDeleteMoradorDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Excluir morador</DialogTitle>
+          <DialogDescription>
+            Tem certeza que deseja remover este morador? Esta ação não pode ser desfeita.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" className="rounded-full" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onConfirm}>
+            <Trash2 className="h-4 w-4" /> Excluir
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
