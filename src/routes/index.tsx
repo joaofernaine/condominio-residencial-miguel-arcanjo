@@ -1391,15 +1391,21 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       {/* Obras admin */}
       <section className="bg-background py-16">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-              <Hammer className="h-3.5 w-3.5" /> Obras
-            </span>
-            <h2 className="mt-3 text-3xl font-medium md:text-4xl">Andamento das obras</h2>
-            <p className="mt-4 text-muted-foreground">
-              Publique atualizações e ajuste o progresso das obras em andamento.
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Hammer className="h-3.5 w-3.5" /> Obras
+              </span>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Andamento das obras</h2>
+              <p className="mt-4 text-muted-foreground">
+                Publique atualizações e ajuste o progresso das obras em andamento.
+              </p>
+            </div>
+            <Button onClick={() => setNewObraOpen(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Nova obra
+            </Button>
           </div>
+
 
           {obrasLoading ? (
             <div className="mt-10"><LoadingBlock label="Carregando obras…" /></div>
