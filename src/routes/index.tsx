@@ -1432,6 +1432,8 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         loading={reservasLoading}
         onApprove={handleApprove}
         onReject={handleReject}
+        onBlock={() => setBlockOpen(true)}
+        onDeleteBloqueio={handleDeleteBloqueio}
       />
 
       {/* Obras admin */}
