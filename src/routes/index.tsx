@@ -1124,6 +1124,12 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
 
+  const [newMoradorOpen, setNewMoradorOpen] = useState(false);
+  const [newObraOpen, setNewObraOpen] = useState(false);
+  const [newPautaOpen, setNewPautaOpen] = useState(false);
+
+
+
   const loadPautas = useCallback(async () => {
     setPautasLoading(true);
     try { setPautas(await fetchPautasAtivas(profile.condominio_id)); }
