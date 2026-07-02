@@ -299,6 +299,49 @@ export async function inserirAtualizacaoObra(input: {
   if (updErr) throw updErr;
 }
 
+export async function removerAtualizacaoObra(id: string) {
+  const { error } = await supabase.from("obra_atualizacoes").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function atualizarObra(
+  id: string,
+  patch: {
+    titulo: string;
+    descricao: string;
+    status: ObraRow["status"];
+    progresso_atual: number;
+  },
+) {
+  const { error } = await supabase.from("obras").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+// ---------- STORAGE (obras-fotos) ----------
+
+const OBRAS_BUCKET = "obras-fotos";
+let bucketEnsured = false;
+
+async function ensureObrasBucket() {
+  if (bucketEnsured) return;
+  // Tenta criar; ignora erro (já existe ou sem permissão do anon — nesse caso
+  // o bucket deve ter sido criado previamente no dashboard do Supabase).
+  await supabase.storage.createBucket(OBRAS_BUCKET, { public: true }).catch(() => {});
+  bucketEnsured = true;
+}
+
+export async function uploadObraFoto(obraId: string, file: File) {
+  await ensureObrasBucket();
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${obraId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage
+    .from(OBRAS_BUCKET)
+    .upload(path, file, { upsert: false, contentType: file.type || undefined });
+  if (error) throw error;
+  const { data } = supabase.storage.from(OBRAS_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
 // ---------- CADASTROS (síndica) ----------
 
 export async function criarMorador(input: {
