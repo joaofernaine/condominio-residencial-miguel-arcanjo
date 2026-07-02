@@ -731,7 +731,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
     }
   };
 
-  const handleRequestReservation = async (spaceId: string, spaceName: string, dateIso: string) => {
+  const handleRequestReservation = async (spaceId: string, spaceName: string, dateIso: string, observacoes: string) => {
     try {
       await criarReserva({
         condominio_id: profile.condominio_id,
@@ -739,6 +739,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
         espaco: spaceId,
         data_inicio: dateIso,
         data_fim: dateIso,
+        observacoes: observacoes.trim() || null,
       });
       toast.success(`Solicitação enviada: ${spaceName} em ${dateIso.split("-").reverse().join("/")}.`);
       loadReservas();
