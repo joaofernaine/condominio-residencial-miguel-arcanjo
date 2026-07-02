@@ -298,3 +298,49 @@ export async function inserirAtualizacaoObra(input: {
     .eq("id", input.obra_id);
   if (updErr) throw updErr;
 }
+
+// ---------- CADASTROS (síndica) ----------
+
+export async function criarMorador(input: {
+  condominio_id: string;
+  nome_completo: string;
+  unidade: string;
+}) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .insert({
+      condominio_id: input.condominio_id,
+      nome_completo: input.nome_completo,
+      unidade: input.unidade,
+      role: "morador",
+      primeiro_acesso: true,
+      auth_user_id: null,
+    })
+    .select("id, nome_completo, unidade, role")
+    .single();
+  if (error) throw error;
+  return data as { id: string; nome_completo: string; unidade: string; role: Role };
+}
+
+export async function criarObra(input: {
+  condominio_id: string;
+  titulo: string;
+  descricao: string;
+  status: ObraRow["status"];
+  progresso_atual: number;
+}) {
+  const { error } = await supabase.from("obras").insert(input);
+  if (error) throw error;
+}
+
+export async function criarPauta(input: {
+  condominio_id: string;
+  titulo: string;
+  descricao: string;
+  data_inicio: string;
+  data_fim: string;
+}) {
+  const { error } = await supabase.from("pautas").insert({ ...input, status: "ativa" });
+  if (error) throw error;
+}
+
