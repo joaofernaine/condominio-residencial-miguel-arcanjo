@@ -431,6 +431,59 @@ function FirstAccessDialog({
   );
 }
 
+// ================== AGENCY ADMIN (toggle Síndica ⇄ Morador) ==================
+
+function AgencyAdminView({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+  const [view, setView] = useState<"sindica" | "morador">("sindica");
+  const sindicaProfile = useMemo<Profile>(() => ({ ...profile, role: "sindica" }), [profile]);
+  const moradorProfile = useMemo<Profile>(() => ({ ...profile, role: "morador" }), [profile]);
+
+  return (
+    <div className="relative">
+      <div className="sticky top-0 z-40 border-b border-[color:var(--gold)]/40 bg-primary text-primary-foreground">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-2 text-xs">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-[color:var(--gold)]" />
+            <span className="font-semibold uppercase tracking-widest text-[color:var(--gold)]">
+              Admin Agência
+            </span>
+            <span className="text-primary-foreground/70">— visualização de teste</span>
+          </div>
+          <div className="inline-flex overflow-hidden rounded-full border border-white/20 bg-white/10">
+            <button
+              type="button"
+              onClick={() => setView("sindica")}
+              className={`px-4 py-1.5 text-xs font-medium transition ${
+                view === "sindica"
+                  ? "bg-[color:var(--gold)] text-primary"
+                  : "text-primary-foreground/85 hover:bg-white/10"
+              }`}
+            >
+              Visão Síndica
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("morador")}
+              className={`px-4 py-1.5 text-xs font-medium transition ${
+                view === "morador"
+                  ? "bg-[color:var(--gold)] text-primary"
+                  : "text-primary-foreground/85 hover:bg-white/10"
+              }`}
+            >
+              Visão Morador
+            </button>
+          </div>
+        </div>
+      </div>
+      {view === "sindica" ? (
+        <AdminDashboard profile={sindicaProfile} onLogout={onLogout} />
+      ) : (
+        <ResidentDashboard profile={moradorProfile} onLogout={onLogout} />
+      )}
+    </div>
+  );
+}
+
 // ================== HELPERS ==================
 
 function EmptyState({ children }: { children: React.ReactNode }) {
