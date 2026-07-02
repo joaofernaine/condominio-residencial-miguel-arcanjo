@@ -2435,7 +2435,7 @@ function ObraTimeline({
   );
 }
 
-function ObraUpdatesGallery({ obraId, accent, admin = false }: { obraId: string; accent: string; admin?: boolean }) {
+function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obraId: string; accent: string; admin?: boolean; onChanged?: () => void }) {
   const [items, setItems] = useState<ObraAtualizacaoRow[] | null>(null);
   const [active, setActive] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -2456,6 +2456,7 @@ function ObraUpdatesGallery({ obraId, accent, admin = false }: { obraId: string;
       await removerAtualizacaoObra(id);
       toast.success("Atualização removida.");
       reload();
+      onChanged?.();
     } catch (err) {
       console.error(err);
       toast.error("Erro ao remover atualização.");
