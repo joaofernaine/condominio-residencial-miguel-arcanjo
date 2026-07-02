@@ -629,7 +629,7 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
 
 // ================== RESIDENT DASHBOARD ==================
 
-function ResidentDashboard({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: React.ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
   const [pautasLoading, setPautasLoading] = useState(true);
@@ -1110,7 +1110,7 @@ const STATUS_STYLES: Record<FinancialStatus, string> = {
 
 type MoradorInfo = { id: string; nome_completo: string; unidade: string };
 
-function AdminDashboard({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: React.ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [pautasLoading, setPautasLoading] = useState(true);
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
