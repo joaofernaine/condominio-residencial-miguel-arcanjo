@@ -213,9 +213,46 @@ export async function criarReserva(input: {
   espaco: string;
   data_inicio: string;
   data_fim: string;
+  observacoes?: string | null;
 }) {
-  const { error } = await supabase.from("reservas").insert({ ...input, status: "pendente" });
+  const { error } = await supabase
+    .from("reservas")
+    .insert({ ...input, status: "pendente", observacoes: input.observacoes ?? null });
   if (error) throw error;
+}
+
+export async function criarBloqueio(input: {
+  condominio_id: string;
+  morador_id: string;
+  espaco: string;
+  data: string;
+  motivo: string;
+}) {
+  const { error } = await supabase.from("reservas").insert({
+    condominio_id: input.condominio_id,
+    morador_id: input.morador_id,
+    espaco: input.espaco,
+    data_inicio: input.data,
+    data_fim: input.data,
+    status: "bloqueado",
+    observacoes: input.motivo,
+  });
+  if (error) throw error;
+}
+
+export async function removerReserva(id: string) {
+  const { error } = await supabase.from("reservas").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function fetchOcupacoesCondominio(condominioId: string) {
+  const { data, error } = await supabase
+    .from("reservas")
+    .select("id, espaco, data_inicio, status, observacoes")
+    .eq("condominio_id", condominioId)
+    .in("status", ["aprovada", "bloqueado"]);
+  if (error) throw error;
+  return (data ?? []) as OcupacaoRow[];
 }
 
 export async function aprovarReserva(id: string) {
