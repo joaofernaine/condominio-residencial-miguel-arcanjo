@@ -2320,6 +2320,17 @@ function ObraUpdatesGallery({ obraId, accent, admin = false }: { obraId: string;
         <span className="absolute right-3 top-3 rounded-full bg-black/40 px-2.5 py-0.5 font-mono text-[11px] text-white backdrop-blur">
           {new Date(current.created_at).toLocaleDateString("pt-BR")}
         </span>
+        {admin && (
+          <button
+            type="button"
+            onClick={() => handleDelete(current.id)}
+            disabled={deletingId === current.id}
+            className="absolute bottom-3 right-3 grid h-8 w-8 place-items-center rounded-full bg-destructive/90 text-destructive-foreground shadow transition hover:bg-destructive disabled:opacity-60"
+            aria-label="Remover esta atualização"
+          >
+            {deletingId === current.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          </button>
+        )}
       </div>
 
       {current.descricao && (
