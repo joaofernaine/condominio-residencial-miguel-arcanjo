@@ -1925,8 +1925,13 @@ function ReservationsManagement({
               Aprove ou recuse os pedidos enviados pelos moradores.
             </p>
           </div>
-          <div className="rounded-full bg-[color:var(--gold)]/15 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
-            {pending.length} {pending.length === 1 ? "pedido pendente" : "pedidos pendentes"}
+          <div className="flex items-center gap-3">
+            <Button onClick={onBlock} variant="outline" className="rounded-full">
+              <Lock className="h-4 w-4" /> Bloquear data
+            </Button>
+            <div className="rounded-full bg-[color:var(--gold)]/15 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
+              {pending.length} {pending.length === 1 ? "pedido pendente" : "pedidos pendentes"}
+            </div>
           </div>
         </div>
 
