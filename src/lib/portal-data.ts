@@ -137,15 +137,14 @@ export async function fetchPautasAtivas(condominioId: string) {
   return (data ?? []) as PautaRow[];
 }
 
-export async function fetchMeusVotos(condominioId: string, moradorId: string) {
-  // votos do morador nas pautas do condominio
+export async function fetchMeusVotos(_condominioId: string, moradorId: string) {
+  // Basta filtrar pelos votos do morador — cada morador só existe em um condomínio.
   const { data, error } = await supabase
     .from("votos")
-    .select("pauta_id, morador_id, voto, pautas!inner(condominio_id)")
-    .eq("morador_id", moradorId)
-    .eq("pautas.condominio_id", condominioId);
+    .select("pauta_id, voto")
+    .eq("morador_id", moradorId);
   if (error) throw error;
-  return (data ?? []) as unknown as { pauta_id: string; voto: "sim" | "nao" }[];
+  return (data ?? []) as { pauta_id: string; voto: "sim" | "nao" }[];
 }
 
 export async function registrarVoto(pautaId: string, moradorId: string, voto: "sim" | "nao") {
@@ -158,7 +157,7 @@ export async function registrarVoto(pautaId: string, moradorId: string, voto: "s
 export async function fetchVotosDePauta(pautaId: string) {
   const { data, error } = await supabase
     .from("votos")
-    .select("id, voto, created_at, morador:profiles!votos_morador_id_fkey(nome_completo, unidade)")
+    .select("id, voto, created_at, morador:profiles(nome_completo, unidade)")
     .eq("pauta_id", pautaId)
     .order("created_at", { ascending: true });
   if (error) throw error;
@@ -170,6 +169,7 @@ export async function fetchVotosDePauta(pautaId: string) {
   }[];
 }
 
+
 // ---------- RESERVAS ----------
 
 export type ReservaComMorador = ReservaRow & {
@@ -179,7 +179,7 @@ export type ReservaComMorador = ReservaRow & {
 export async function fetchReservasDoCondominio(condominioId: string) {
   const { data, error } = await supabase
     .from("reservas")
-    .select("*, morador:profiles!reservas_morador_id_fkey(nome_completo, unidade)")
+    .select("*, morador:profiles(nome_completo, unidade)")
     .eq("condominio_id", condominioId)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -298,3 +298,49 @@ export async function inserirAtualizacaoObra(input: {
     .eq("id", input.obra_id);
   if (updErr) throw updErr;
 }
+
+// ---------- CADASTROS (síndica) ----------
+
+export async function criarMorador(input: {
+  condominio_id: string;
+  nome_completo: string;
+  unidade: string;
+}) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .insert({
+      condominio_id: input.condominio_id,
+      nome_completo: input.nome_completo,
+      unidade: input.unidade,
+      role: "morador",
+      primeiro_acesso: true,
+      auth_user_id: null,
+    })
+    .select("id, nome_completo, unidade, role")
+    .single();
+  if (error) throw error;
+  return data as { id: string; nome_completo: string; unidade: string; role: Role };
+}
+
+export async function criarObra(input: {
+  condominio_id: string;
+  titulo: string;
+  descricao: string;
+  status: ObraRow["status"];
+  progresso_atual: number;
+}) {
+  const { error } = await supabase.from("obras").insert(input);
+  if (error) throw error;
+}
+
+export async function criarPauta(input: {
+  condominio_id: string;
+  titulo: string;
+  descricao: string;
+  data_inicio: string;
+  data_fim: string;
+}) {
+  const { error } = await supabase.from("pautas").insert({ ...input, status: "ativa" });
+  if (error) throw error;
+}
+

@@ -25,6 +25,8 @@ import {
   Mail,
   MapPin,
   Phone,
+  Plus,
+
   Search,
   Send,
   Sparkles,
@@ -117,7 +119,11 @@ import {
   fetchObras,
   fetchAtualizacoesObra,
   inserirAtualizacaoObra,
+  criarMorador,
+  criarObra,
+  criarPauta,
 } from "@/lib/portal-data";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -1118,6 +1124,12 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
 
+  const [newMoradorOpen, setNewMoradorOpen] = useState(false);
+  const [newObraOpen, setNewObraOpen] = useState(false);
+  const [newPautaOpen, setNewPautaOpen] = useState(false);
+
+
+
   const loadPautas = useCallback(async () => {
     setPautasLoading(true);
     try { setPautas(await fetchPautasAtivas(profile.condominio_id)); }
@@ -1254,15 +1266,21 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       {/* Inadimplência */}
       <section className="bg-secondary/40 py-16">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-              <Wallet className="h-3.5 w-3.5" /> Situação financeira
-            </span>
-            <h2 className="mt-3 text-3xl font-medium md:text-4xl">Unidades & cobranças</h2>
-            <p className="mt-4 text-muted-foreground">
-              Clique em uma linha para editar o histórico mensal ({currentYear}).
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Wallet className="h-3.5 w-3.5" /> Situação financeira
+              </span>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Unidades & cobranças</h2>
+              <p className="mt-4 text-muted-foreground">
+                Clique em uma linha para editar o histórico mensal ({currentYear}).
+              </p>
+            </div>
+            <Button onClick={() => setNewMoradorOpen(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Cadastrar morador
+            </Button>
           </div>
+
 
           <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
             <Table>
@@ -1327,15 +1345,21 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       {/* Votações */}
       <section className="bg-background py-16">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-              <Vote className="h-3.5 w-3.5" /> Votações
-            </span>
-            <h2 className="mt-3 text-3xl font-medium md:text-4xl">Resultados em tempo real</h2>
-            <p className="mt-4 text-muted-foreground">
-              Visível apenas para a síndica. Os moradores não enxergam os parciais.
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Vote className="h-3.5 w-3.5" /> Votações
+              </span>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Resultados em tempo real</h2>
+              <p className="mt-4 text-muted-foreground">
+                Visível apenas para a síndica. Os moradores não enxergam os parciais.
+              </p>
+            </div>
+            <Button onClick={() => setNewPautaOpen(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Nova pauta
+            </Button>
           </div>
+
 
           <div className="mt-8 space-y-4">
             {pautasLoading ? (
@@ -1367,15 +1391,21 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       {/* Obras admin */}
       <section className="bg-background py-16">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-              <Hammer className="h-3.5 w-3.5" /> Obras
-            </span>
-            <h2 className="mt-3 text-3xl font-medium md:text-4xl">Andamento das obras</h2>
-            <p className="mt-4 text-muted-foreground">
-              Publique atualizações e ajuste o progresso das obras em andamento.
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Hammer className="h-3.5 w-3.5" /> Obras
+              </span>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Andamento das obras</h2>
+              <p className="mt-4 text-muted-foreground">
+                Publique atualizações e ajuste o progresso das obras em andamento.
+              </p>
+            </div>
+            <Button onClick={() => setNewObraOpen(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Nova obra
+            </Button>
           </div>
+
 
           {obrasLoading ? (
             <div className="mt-10"><LoadingBlock label="Carregando obras…" /></div>
@@ -1406,9 +1436,275 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
           © {new Date().getFullYear()} Portal Condomínio Inteligente · Painel administrativo
         </div>
       </footer>
+
+      <NewMoradorDialog
+        open={newMoradorOpen}
+        onOpenChange={setNewMoradorOpen}
+        condominioId={profile.condominio_id}
+        onCreated={loadFinanceiro}
+      />
+      <NewObraDialog
+        open={newObraOpen}
+        onOpenChange={setNewObraOpen}
+        condominioId={profile.condominio_id}
+        onCreated={loadObras}
+      />
+      <NewPautaDialog
+        open={newPautaOpen}
+        onOpenChange={setNewPautaOpen}
+        condominioId={profile.condominio_id}
+        onCreated={loadPautas}
+      />
     </>
   );
 }
+
+// ================== NEW MORADOR / OBRA / PAUTA DIALOGS ==================
+
+function NewMoradorDialog({
+  open,
+  onOpenChange,
+  condominioId,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  condominioId: string;
+  onCreated: () => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [unidade, setUnidade] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => { setNome(""); setEmail(""); setUnidade(""); };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim() || !unidade.trim()) {
+      toast.error("Preencha nome e unidade.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await criarMorador({
+        condominio_id: condominioId,
+        nome_completo: nome.trim(),
+        unidade: unidade.trim(),
+      });
+      toast.success("Morador cadastrado. Envie o convite por email quando o fluxo estiver ativo.");
+      reset();
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao cadastrar morador.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Cadastrar morador</DialogTitle>
+          <DialogDescription>
+            O morador receberá acesso ao portal quando o fluxo de convite por email for ativado.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="nm-nome">Nome completo</Label>
+            <Input id="nm-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nm-email">Email</Label>
+            <Input id="nm-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="opcional por enquanto" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nm-un">Unidade</Label>
+            <Input id="nm-un" value={unidade} onChange={(e) => setUnidade(e.target.value)} placeholder="Ex.: 101" required />
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Cadastrar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NewObraDialog({
+  open,
+  onOpenChange,
+  condominioId,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  condominioId: string;
+  onCreated: () => void;
+}) {
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [status, setStatus] = useState<ObraRow["status"]>("planejado");
+  const [progresso, setProgresso] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo.trim()) return toast.error("Informe o título da obra.");
+    setSaving(true);
+    try {
+      await criarObra({
+        condominio_id: condominioId,
+        titulo: titulo.trim(),
+        descricao: descricao.trim(),
+        status,
+        progresso_atual: Math.max(0, Math.min(100, progresso)),
+      });
+      toast.success("Obra cadastrada.");
+      setTitulo(""); setDescricao(""); setStatus("planejado"); setProgresso(0);
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao cadastrar obra.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Nova obra</DialogTitle>
+          <DialogDescription>Cadastre uma obra do condomínio.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="no-titulo">Título</Label>
+            <Input id="no-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="no-desc">Descrição</Label>
+            <Textarea id="no-desc" value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} />
+          </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={(v) => setStatus(v as ObraRow["status"])}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="planejado">Planejado</SelectItem>
+                <SelectItem value="em_andamento">Em andamento</SelectItem>
+                <SelectItem value="concluido">Concluído</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="no-prog">Progresso atual (%)</Label>
+            <Input
+              id="no-prog"
+              type="number"
+              min={0}
+              max={100}
+              value={progresso}
+              onChange={(e) => setProgresso(Number(e.target.value))}
+            />
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Cadastrar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NewPautaDialog({
+  open,
+  onOpenChange,
+  condominioId,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  condominioId: string;
+  onCreated: () => void;
+}) {
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo.trim() || !dataInicio || !dataFim) {
+      toast.error("Preencha título e datas.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await criarPauta({
+        condominio_id: condominioId,
+        titulo: titulo.trim(),
+        descricao: descricao.trim(),
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+      });
+      toast.success("Pauta cadastrada.");
+      setTitulo(""); setDescricao(""); setDataInicio(""); setDataFim("");
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao cadastrar pauta.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Nova pauta de votação</DialogTitle>
+          <DialogDescription>A pauta será criada com status "ativa".</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="np-titulo">Título</Label>
+            <Input id="np-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="np-desc">Descrição</Label>
+            <Textarea id="np-desc" value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="np-ini">Início</Label>
+              <Input id="np-ini" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="np-fim">Fim</Label>
+              <Input id="np-fim" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} required />
+            </div>
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Cadastrar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 // ================== POLL ADMIN CARD ==================
 
