@@ -128,6 +128,12 @@ import {
   criarMorador,
   criarObra,
   criarPauta,
+  criarBloqueio,
+  removerReserva,
+  atualizarMorador,
+  removerMorador,
+  fetchOcupacoesCondominio,
+  type OcupacaoRow,
 } from "@/lib/portal-data";
 
 
