@@ -37,6 +37,8 @@ export type VotoRow = {
   created_at?: string;
 };
 
+export type ReservaStatus = "pendente" | "aprovada" | "recusada" | "bloqueado";
+
 export type ReservaRow = {
   id: string;
   condominio_id: string;
@@ -44,9 +46,18 @@ export type ReservaRow = {
   espaco: string;
   data_inicio: string;
   data_fim: string;
-  status: "pendente" | "aprovada" | "recusada";
+  status: ReservaStatus;
   motivo_recusa: string | null;
+  observacoes: string | null;
   created_at?: string;
+};
+
+export type OcupacaoRow = {
+  id: string;
+  espaco: string;
+  data_inicio: string;
+  status: ReservaStatus;
+  observacoes: string | null;
 };
 
 export type HistoricoRow = {
@@ -79,7 +90,7 @@ export type ObraAtualizacaoRow = {
 
 // ---------- MAPEADORES DE STATUS ----------
 
-export const RESERVA_DB_TO_UI: Record<ReservaRow["status"], ReservationStatus> = {
+export const RESERVA_DB_TO_UI: Record<Exclude<ReservaStatus, "bloqueado">, ReservationStatus> = {
   pendente: "Pendente",
   aprovada: "Confirmada",
   recusada: "Recusada",
@@ -202,9 +213,46 @@ export async function criarReserva(input: {
   espaco: string;
   data_inicio: string;
   data_fim: string;
+  observacoes?: string | null;
 }) {
-  const { error } = await supabase.from("reservas").insert({ ...input, status: "pendente" });
+  const { error } = await supabase
+    .from("reservas")
+    .insert({ ...input, status: "pendente", observacoes: input.observacoes ?? null });
   if (error) throw error;
+}
+
+export async function criarBloqueio(input: {
+  condominio_id: string;
+  morador_id: string;
+  espaco: string;
+  data: string;
+  motivo: string;
+}) {
+  const { error } = await supabase.from("reservas").insert({
+    condominio_id: input.condominio_id,
+    morador_id: input.morador_id,
+    espaco: input.espaco,
+    data_inicio: input.data,
+    data_fim: input.data,
+    status: "bloqueado",
+    observacoes: input.motivo,
+  });
+  if (error) throw error;
+}
+
+export async function removerReserva(id: string) {
+  const { error } = await supabase.from("reservas").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function fetchOcupacoesCondominio(condominioId: string) {
+  const { data, error } = await supabase
+    .from("reservas")
+    .select("id, espaco, data_inicio, status, observacoes")
+    .eq("condominio_id", condominioId)
+    .in("status", ["aprovada", "bloqueado"]);
+  if (error) throw error;
+  return (data ?? []) as OcupacaoRow[];
 }
 
 export async function aprovarReserva(id: string) {
@@ -260,6 +308,23 @@ export async function fetchMoradoresDoCondominio(condominioId: string) {
     .eq("role", "morador");
   if (error) throw error;
   return (data ?? []) as { id: string; nome_completo: string; unidade: string; role: Role }[];
+}
+
+export async function atualizarMorador(
+  id: string,
+  patch: { nome_completo: string; unidade: string },
+) {
+  const { error } = await supabase.from("profiles").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function removerMorador(id: string) {
+  const { error } = await supabase
+    .from("profiles")
+    .delete()
+    .eq("id", id)
+    .eq("role", "morador");
+  if (error) throw error;
 }
 
 // ---------- OBRAS ----------

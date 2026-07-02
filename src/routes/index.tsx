@@ -128,6 +128,12 @@ import {
   criarMorador,
   criarObra,
   criarPauta,
+  criarBloqueio,
+  removerReserva,
+  atualizarMorador,
+  removerMorador,
+  fetchOcupacoesCondominio,
+  type OcupacaoRow,
 } from "@/lib/portal-data";
 
 
@@ -636,6 +642,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
 
   const [reservas, setReservas] = useState<ReservaRow[]>([]);
   const [reservasLoading, setReservasLoading] = useState(true);
+  const [ocupacoes, setOcupacoes] = useState<OcupacaoRow[]>([]);
 
   const [obras, setObras] = useState<ObraRow[]>([]);
   const [obrasLoading, setObrasLoading] = useState(true);
@@ -664,14 +671,19 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
   const loadReservas = useCallback(async () => {
     setReservasLoading(true);
     try {
-      setReservas(await fetchMinhasReservas(profile.id));
+      const [minhas, ocs] = await Promise.all([
+        fetchMinhasReservas(profile.id),
+        fetchOcupacoesCondominio(profile.condominio_id),
+      ]);
+      setReservas(minhas);
+      setOcupacoes(ocs);
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar reservas.");
     } finally {
       setReservasLoading(false);
     }
-  }, [profile.id]);
+  }, [profile.id, profile.condominio_id]);
 
   const loadObras = useCallback(async () => {
     setObrasLoading(true);
@@ -719,7 +731,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
     }
   };
 
-  const handleRequestReservation = async (spaceId: string, spaceName: string, dateIso: string) => {
+  const handleRequestReservation = async (spaceId: string, spaceName: string, dateIso: string, observacoes: string) => {
     try {
       await criarReserva({
         condominio_id: profile.condominio_id,
@@ -727,6 +739,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
         espaco: spaceId,
         data_inicio: dateIso,
         data_fim: dateIso,
+        observacoes: observacoes.trim() || null,
       });
       toast.success(`Solicitação enviada: ${spaceName} em ${dateIso.split("-").reverse().join("/")}.`);
       loadReservas();
@@ -880,7 +893,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
             </div>
           </div>
 
-          <ReservationModule onRequest={handleRequestReservation} />
+          <ReservationModule onRequest={handleRequestReservation} ocupacoes={ocupacoes} />
 
           <div className="mt-12">
             <div className="flex items-end justify-between gap-4">
@@ -903,8 +916,8 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               </div>
             ) : (
               <ul className="mt-6 grid gap-3 md:grid-cols-2">
-                {reservas.map((r) => {
-                  const uiStatus = RESERVA_DB_TO_UI[r.status];
+                {reservas.filter((r) => r.status !== "bloqueado").map((r) => {
+                  const uiStatus = RESERVA_DB_TO_UI[r.status as Exclude<typeof r.status, "bloqueado">];
                   const spaceName = RESERVATION_SPACES.find((s) => s.id === r.espaco)?.name ?? r.espaco;
                   return (
                     <li key={r.id} className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
@@ -916,6 +929,11 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           Data: <span className="font-mono">{r.data_inicio.split("-").reverse().join("/")}</span>
                         </p>
+                        {r.observacoes && (
+                          <p className="mt-1 text-xs text-muted-foreground italic">
+                            Observações: {r.observacoes}
+                          </p>
+                        )}
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${RESERVATION_STATUS_STYLES[uiStatus]}`}>
                             {uiStatus === "Pendente" && "PENDENTE — Aguardando aprovação"}
@@ -933,6 +951,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                   );
                 })}
               </ul>
+
             )}
           </div>
         </div>
@@ -1134,6 +1153,9 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const [newObraOpen, setNewObraOpen] = useState(false);
   const [newPautaOpen, setNewPautaOpen] = useState(false);
   const [editObra, setEditObra] = useState<ObraRow | null>(null);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [editMorador, setEditMorador] = useState<MoradorInfo | null>(null);
+  const [deleteMoradorId, setDeleteMoradorId] = useState<string | null>(null);
 
 
 
@@ -1221,6 +1243,30 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
     } catch (e) {
       console.error(e);
       toast.error("Erro ao atualizar histórico.");
+    }
+  };
+
+  const handleDeleteBloqueio = async (id: string) => {
+    try {
+      await removerReserva(id);
+      toast.success("Bloqueio removido.");
+      loadReservas();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao remover bloqueio.");
+    }
+  };
+
+  const handleDeleteMorador = async () => {
+    if (!deleteMoradorId) return;
+    try {
+      await removerMorador(deleteMoradorId);
+      toast.success("Morador removido.");
+      setDeleteMoradorId(null);
+      loadFinanceiro();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao remover morador.");
     }
   };
 
@@ -1326,9 +1372,17 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                           </span>
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
-                            <History className="h-3.5 w-3.5" /> Histórico
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
+                              <History className="h-3.5 w-3.5" /> Histórico
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
+                              <Pencil className="h-3.5 w-3.5" /> Editar
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
+                              <Trash2 className="h-3.5 w-3.5" /> Excluir
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -1393,6 +1447,8 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         loading={reservasLoading}
         onApprove={handleApprove}
         onReject={handleReject}
+        onBlock={() => setBlockOpen(true)}
+        onDeleteBloqueio={handleDeleteBloqueio}
       />
 
       {/* Obras admin */}
@@ -1466,6 +1522,22 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         obra={editObra}
         onOpenChange={(v) => { if (!v) setEditObra(null); }}
         onSaved={loadObras}
+      />
+      <BlockDateDialog
+        open={blockOpen}
+        onOpenChange={setBlockOpen}
+        profile={profile}
+        onCreated={loadReservas}
+      />
+      <EditMoradorDialog
+        morador={editMorador}
+        onOpenChange={(v) => { if (!v) setEditMorador(null); }}
+        onSaved={loadFinanceiro}
+      />
+      <ConfirmDeleteMoradorDialog
+        open={deleteMoradorId !== null}
+        onOpenChange={(v) => { if (!v) setDeleteMoradorId(null); }}
+        onConfirm={handleDeleteMorador}
       />
     </>
   );
@@ -1882,17 +1954,22 @@ function ReservationsManagement({
   loading,
   onApprove,
   onReject,
+  onBlock,
+  onDeleteBloqueio,
 }: {
   reservas: ReservaComMorador[];
   loading: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string, motivo: string) => void;
+  onBlock: () => void;
+  onDeleteBloqueio: (id: string) => void;
 }) {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
   const pending = reservas.filter((r) => r.status === "pendente");
-  const processed = reservas.filter((r) => r.status !== "pendente");
+  const processed = reservas.filter((r) => r.status === "aprovada" || r.status === "recusada");
+  const bloqueios = reservas.filter((r) => r.status === "bloqueado");
 
   const confirmReject = (id: string) => {
     if (!reason.trim()) return;
@@ -1914,8 +1991,13 @@ function ReservationsManagement({
               Aprove ou recuse os pedidos enviados pelos moradores.
             </p>
           </div>
-          <div className="rounded-full bg-[color:var(--gold)]/15 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
-            {pending.length} {pending.length === 1 ? "pedido pendente" : "pedidos pendentes"}
+          <div className="flex items-center gap-3">
+            <Button onClick={onBlock} variant="outline" className="rounded-full">
+              <Lock className="h-4 w-4" /> Bloquear data
+            </Button>
+            <div className="rounded-full bg-[color:var(--gold)]/15 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
+              {pending.length} {pending.length === 1 ? "pedido pendente" : "pedidos pendentes"}
+            </div>
           </div>
         </div>
 
@@ -1946,14 +2028,22 @@ function ReservationsManagement({
                 </TableRow>
               ) : (
                 [...pending, ...processed].map((r) => {
-                  const uiStatus = RESERVA_DB_TO_UI[r.status];
+                  const rStatus = r.status as Exclude<typeof r.status, "bloqueado">;
+                  const uiStatus = RESERVA_DB_TO_UI[rStatus];
                   const spaceName = RESERVATION_SPACES.find((s) => s.id === r.espaco)?.name ?? r.espaco;
                   return (
                     <Fragment key={r.id}>
                       <TableRow>
                         <TableCell className="font-mono text-xs font-semibold">{r.morador?.unidade ?? "—"}</TableCell>
                         <TableCell>{r.morador?.nome_completo ?? "—"}</TableCell>
-                        <TableCell>{spaceName}</TableCell>
+                        <TableCell>
+                          {spaceName}
+                          {r.observacoes && (
+                            <p className="mt-0.5 text-[11px] italic text-muted-foreground">
+                              Obs.: {r.observacoes}
+                            </p>
+                          )}
+                        </TableCell>
                         <TableCell className="font-mono text-xs">
                           {r.data_inicio.split("-").reverse().join("/")}
                         </TableCell>
@@ -2014,22 +2104,63 @@ function ReservationsManagement({
             </TableBody>
           </Table>
         </div>
+
+        {/* Bloqueios ativos */}
+        <div className="mt-8">
+          <h3 className="font-display text-xl font-medium">Datas bloqueadas</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Bloqueios impedem novas reservas nesses dias.</p>
+          {bloqueios.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
+              Nenhuma data bloqueada.
+            </div>
+          ) : (
+            <ul className="mt-4 grid gap-2 md:grid-cols-2">
+              {bloqueios.map((b) => {
+                const spaceName = RESERVATION_SPACES.find((s) => s.id === b.espaco)?.name ?? b.espaco;
+                return (
+                  <li key={b.id} className="flex items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-3">
+                    <div className="min-w-0 flex-1 text-sm">
+                      <p className="font-semibold">{spaceName} · <span className="font-mono">{b.data_inicio.split("-").reverse().join("/")}</span></p>
+                      {b.observacoes && <p className="text-xs text-destructive">{b.observacoes}</p>}
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteBloqueio(b.id)}>
+                      <Trash2 className="h-3.5 w-3.5" /> Remover
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
     </section>
   );
 }
 
+
 // ================== RESERVATION MODULE (morador) ==================
 
 function ReservationModule({
   onRequest,
+  ocupacoes,
 }: {
-  onRequest: (spaceId: string, spaceName: string, dateIso: string) => void;
+  onRequest: (spaceId: string, spaceName: string, dateIso: string, observacoes: string) => void;
+  ocupacoes: OcupacaoRow[];
 }) {
   const [selectedSpace, setSelectedSpace] = useState<string>(RESERVATION_SPACES[0]?.id ?? "");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [observacoes, setObservacoes] = useState("");
   const today = useMemo(() => new Date(), []);
   const [viewMonth, setViewMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
+
+  // Map iso -> ocupacao no espaço selecionado
+  const ocupacaoByIso = useMemo(() => {
+    const m = new Map<string, OcupacaoRow>();
+    ocupacoes
+      .filter((o) => o.espaco === selectedSpace)
+      .forEach((o) => m.set(o.data_inicio, o));
+    return m;
+  }, [ocupacoes, selectedSpace]);
 
   const monthGrid = useMemo(() => {
     const { year, month } = viewMonth;
@@ -2059,8 +2190,9 @@ function ReservationModule({
   const submit = () => {
     if (!space) return toast.error("Nenhum espaço configurado.");
     if (!selectedDate) return toast.error("Escolha uma data disponível.");
-    onRequest(space.id, space.name, selectedDate);
+    onRequest(space.id, space.name, selectedDate, observacoes);
     setSelectedDate(null);
+    setObservacoes("");
   };
 
   const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -2103,24 +2235,51 @@ function ReservationModule({
           {monthGrid.map((cell, idx) => {
             if (!cell) return <span key={`e-${idx}`} className="aspect-square" />;
             const isSelected = selectedDate === cell.iso;
-            const disabled = cell.past;
+            const oc = ocupacaoByIso.get(cell.iso);
+            const isBlocked = oc?.status === "bloqueado";
+            const isReserved = oc?.status === "aprovada";
+            const disabled = cell.past || isBlocked || isReserved;
+            const baseClass = cell.past
+              ? "cursor-not-allowed border-border bg-secondary/40 opacity-40"
+              : isBlocked
+                ? "cursor-not-allowed border-destructive/50 bg-destructive/10 text-destructive"
+                : isReserved
+                  ? "cursor-not-allowed border-[color:var(--gold)]/50 bg-[color:var(--gold)]/15 text-[color:var(--gold)]"
+                  : isSelected
+                    ? "border-primary bg-primary text-primary-foreground shadow-[var(--shadow-soft)]"
+                    : "border-border bg-card hover:-translate-y-0.5 hover:border-primary/50";
             return (
               <button
                 key={cell.iso}
                 type="button"
                 disabled={disabled}
                 onClick={() => setSelectedDate(cell.iso)}
-                className={`group relative flex aspect-square flex-col items-center justify-center rounded-lg border text-center transition-all ${
-                  cell.past ? "cursor-not-allowed border-border bg-secondary/40 opacity-40" : isSelected ? "border-primary bg-primary text-primary-foreground shadow-[var(--shadow-soft)]" : "border-border bg-card hover:-translate-y-0.5 hover:border-primary/50"
-                }`}
+                title={isBlocked ? oc?.observacoes ?? "Bloqueado" : isReserved ? "Reservado" : ""}
+                className={`group relative flex aspect-square flex-col items-center justify-center rounded-lg border text-center transition-all ${baseClass}`}
               >
                 <span className="font-display text-sm font-semibold sm:text-base">{cell.day}</span>
-                {!cell.past && !isSelected && (
+                {!cell.past && !isSelected && !isBlocked && !isReserved && (
                   <span className="mt-0.5 text-[9px] font-medium text-[color:var(--sage)]">Livre</span>
+                )}
+                {isBlocked && (
+                  <span className="mt-0.5 line-clamp-1 max-w-full px-0.5 text-[8px] font-semibold uppercase tracking-tight">
+                    {oc?.observacoes ?? "Manutenção"}
+                  </span>
+                )}
+                {isReserved && (
+                  <span className="mt-0.5 text-[8px] font-semibold uppercase">Reservado</span>
                 )}
               </button>
             );
           })}
+        </div>
+
+        {/* Legenda */}
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border border-border bg-card" /> Disponível</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border border-[color:var(--gold)]/50 bg-[color:var(--gold)]/15" /> Reservado</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border border-destructive/50 bg-destructive/10" /> <span className="text-destructive">Manutenção</span></span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border border-primary bg-primary" /> Selecionado</span>
         </div>
       </div>
 
@@ -2133,7 +2292,11 @@ function ReservationModule({
             {selectedDate ? selectedDate.split("-").reverse().join("/") : "Selecione um dia"}
           </p>
         </div>
-        <Button onClick={submit} size="lg" className="mt-auto w-full rounded-full" disabled={!selectedDate || !space}>
+        <div className="mt-4 space-y-2">
+          <Label htmlFor="rm-obs" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Observações (opcional)</Label>
+          <Textarea id="rm-obs" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Ex.: Aniversário, ~30 pessoas" rows={3} maxLength={280} />
+        </div>
+        <Button onClick={submit} size="lg" className="mt-6 w-full rounded-full" disabled={!selectedDate || !space}>
           <Send className="h-4 w-4" /> Solicitar reserva
         </Button>
         <p className="mt-3 text-center text-xs text-muted-foreground">
@@ -2143,6 +2306,7 @@ function ReservationModule({
     </div>
   );
 }
+
 
 // ================== STAT CARD ==================
 
@@ -2729,3 +2893,186 @@ function PaymentHistoryDialog({
     </Dialog>
   );
 }
+
+// ================== BLOCK DATE / EDIT / DELETE MORADOR DIALOGS ==================
+
+function BlockDateDialog({
+  open,
+  onOpenChange,
+  profile,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  profile: Profile;
+  onCreated: () => void;
+}) {
+  const [espaco, setEspaco] = useState<string>(RESERVATION_SPACES[0]?.id ?? "");
+  const [data, setData] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => { setEspaco(RESERVATION_SPACES[0]?.id ?? ""); setData(""); setMotivo(""); };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!espaco || !data || !motivo.trim()) {
+      toast.error("Preencha espaço, data e motivo.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await criarBloqueio({
+        condominio_id: profile.condominio_id,
+        morador_id: profile.id,
+        espaco,
+        data,
+        motivo: motivo.trim(),
+      });
+      toast.success("Data bloqueada.");
+      reset();
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao bloquear data.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Bloquear data</DialogTitle>
+          <DialogDescription>
+            Impede novas reservas do espaço no dia informado.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="bl-espaco">Espaço</Label>
+            <Select value={espaco} onValueChange={setEspaco}>
+              <SelectTrigger id="bl-espaco"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {RESERVATION_SPACES.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bl-data">Data</Label>
+            <Input id="bl-data" type="date" value={data} onChange={(e) => setData(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bl-motivo">Motivo</Label>
+            <Input id="bl-motivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: Manutenção, evento do condomínio" required maxLength={120} />
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+            Bloquear
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditMoradorDialog({
+  morador,
+  onOpenChange,
+  onSaved,
+}: {
+  morador: MoradorInfo | null;
+  onOpenChange: (v: boolean) => void;
+  onSaved: () => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [unidade, setUnidade] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (morador) { setNome(morador.nome_completo); setUnidade(morador.unidade); }
+  }, [morador]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!morador) return;
+    if (!nome.trim() || !unidade.trim()) {
+      toast.error("Preencha nome e unidade.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await atualizarMorador(morador.id, {
+        nome_completo: nome.trim(),
+        unidade: unidade.trim(),
+      });
+      toast.success("Morador atualizado.");
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao atualizar morador.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={morador !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Editar morador</DialogTitle>
+          <DialogDescription>Atualize nome e unidade.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="em-nome">Nome completo</Label>
+            <Input id="em-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="em-un">Unidade</Label>
+            <Input id="em-un" value={unidade} onChange={(e) => setUnidade(e.target.value)} required />
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+            Salvar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfirmDeleteMoradorDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Excluir morador</DialogTitle>
+          <DialogDescription>
+            Tem certeza que deseja remover este morador? Esta ação não pode ser desfeita.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" className="rounded-full" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onConfirm}>
+            <Trash2 className="h-4 w-4" /> Excluir
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
