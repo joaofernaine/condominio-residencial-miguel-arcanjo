@@ -1953,7 +1953,8 @@ function ReservationsManagement({
                 </TableRow>
               ) : (
                 [...pending, ...processed].map((r) => {
-                  const uiStatus = RESERVA_DB_TO_UI[r.status];
+                  const rStatus = r.status as Exclude<typeof r.status, "bloqueado">;
+                  const uiStatus = RESERVA_DB_TO_UI[rStatus];
                   const spaceName = RESERVATION_SPACES.find((s) => s.id === r.espaco)?.name ?? r.espaco;
                   return (
                     <Fragment key={r.id}>
