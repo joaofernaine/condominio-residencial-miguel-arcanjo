@@ -2896,7 +2896,7 @@ function DocumentsArchive({ condominioId }: { condominioId: string }) {
 function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
   const [docs, setDocs] = useState<DocumentoRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tipo, setTipo] = useState<DocumentoTipo>("ata");
+  const [tipo, setTipo] = useState<string>("");
   const [mes, setMes] = useState<number>(new Date().getMonth() + 1);
   const [ano, setAno] = useState<number>(new Date().getFullYear());
   const [file, setFile] = useState<File | null>(null);
