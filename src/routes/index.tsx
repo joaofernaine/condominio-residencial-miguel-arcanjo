@@ -2920,7 +2920,7 @@ function PaymentHistoryDialog({
                   {isFuture ? (
                     <p className="mt-3 text-[11px] italic text-muted-foreground">A faturar</p>
                   ) : row && uiStatus ? (
-                    <Select value={uiStatus} onValueChange={(v) => onChange(row.id, v as FinancialStatus)}>
+                    <Select value={uiStatus} onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
                       <SelectTrigger className={`mt-2 h-8 w-full border-0 px-2 text-[11px] font-bold uppercase tracking-wider ${STATUS_STYLES[uiStatus]}`}>
                         <SelectValue />
                       </SelectTrigger>
@@ -2931,8 +2931,18 @@ function PaymentHistoryDialog({
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="mt-3 text-[11px] italic text-muted-foreground">Sem registro</p>
+                    <Select value="" onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
+                      <SelectTrigger className="mt-2 h-8 w-full border border-dashed border-border bg-secondary/30 px-2 text-[11px] italic text-muted-foreground">
+                        <SelectValue placeholder="Sem registro" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Em dia">Em dia (Pago)</SelectItem>
+                        <SelectItem value="Pendente">Pendente</SelectItem>
+                        <SelectItem value="Atrasado">Atrasado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   )}
+
                 </div>
               );
             })}
