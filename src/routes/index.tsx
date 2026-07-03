@@ -2873,8 +2873,9 @@ function PaymentHistoryDialog({
   historico: HistoricoRow[];
   year: number;
   onClose: () => void;
-  onChange: (rowId: string, status: FinancialStatus) => void;
+  onChange: (monthNum: number, status: FinancialStatus) => void;
 }) {
+
   const morador = moradorId ? moradores.find((m) => m.id === moradorId) ?? null : null;
   const rowsByMonth = new Map<number, HistoricoRow>();
   if (moradorId) {
