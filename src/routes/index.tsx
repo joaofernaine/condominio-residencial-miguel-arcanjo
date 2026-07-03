@@ -2866,7 +2866,7 @@ function DocumentsArchive({ condominioId }: { condominioId: string }) {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">
-                          {DOCUMENTO_TIPO_LABEL[doc.tipo]} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
+                          {doc.tipo} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
                         </p>
                         <p className="mt-0.5 truncate text-[11px] text-muted-foreground">PDF · {doc.nome_arquivo}</p>
                       </div>
