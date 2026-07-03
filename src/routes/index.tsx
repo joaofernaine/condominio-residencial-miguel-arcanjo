@@ -139,7 +139,6 @@ import {
   criarDocumento,
   removerDocumento,
   uploadDocumentoPdf,
-  DOCUMENTO_TIPO_LABEL,
   type DocumentoRow,
   type DocumentoTipo,
   type OcupacaoRow,
@@ -1087,43 +1086,77 @@ function PollCard({
 // ================== MY PAYMENT GRID (morador) ==================
 
 function MyPaymentGrid({ rows, year }: { rows: HistoricoRow[]; year: number }) {
+  const [expanded, setExpanded] = useState(false);
   const byMonth = new Map<number, HistoricoRow>();
   rows.forEach((r) => byMonth.set(r.mes, r));
   const currentMonth = new Date().getMonth() + 1;
+  const currentRow = byMonth.get(currentMonth);
+  const currentUiStatus = currentRow ? HISTORICO_DB_TO_UI[currentRow.status] : null;
+
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-display text-lg font-semibold">Pagamentos {year}</h3>
         <Wallet className="h-4 w-4 text-muted-foreground" />
       </div>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
-        {Array.from({ length: 12 }).map((_, i) => {
-          const monthNum = i + 1;
-          const row = byMonth.get(monthNum);
-          const uiStatus = row ? HISTORICO_DB_TO_UI[row.status] : null;
-          const isFuture = monthNum > currentMonth;
-          const isCurrent = monthNum === currentMonth;
-          return (
-            <div key={monthNum} className={`rounded-xl border p-3 ${isCurrent ? "border-primary bg-primary/5" : isFuture ? "border-dashed border-border bg-secondary/30" : "border-border bg-card"}`}>
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{MONTH_NAMES_PT_SHORT[i]}</p>
-                {isCurrent && (
-                  <span className="rounded-full bg-primary px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">Atual</span>
+
+      {/* Mês atual em destaque */}
+      <div className="rounded-xl border border-primary bg-primary/5 p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mês atual</p>
+            <p className="mt-1 font-display text-2xl font-semibold">{MONTH_NAMES_PT[currentMonth - 1]}</p>
+          </div>
+          {currentUiStatus ? (
+            <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${STATUS_STYLES[currentUiStatus]}`}>
+              {currentUiStatus}
+            </span>
+          ) : (
+            <span className="text-xs italic text-muted-foreground">Sem registro</span>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 flex justify-center">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-xs font-semibold uppercase tracking-wider text-primary hover:underline"
+        >
+          {expanded ? "Recolher" : `Ver histórico completo (${year})`}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+          {Array.from({ length: 12 }).map((_, i) => {
+            const monthNum = i + 1;
+            const row = byMonth.get(monthNum);
+            const uiStatus = row ? HISTORICO_DB_TO_UI[row.status] : null;
+            const isFuture = monthNum > currentMonth;
+            const isCurrent = monthNum === currentMonth;
+            return (
+              <div key={monthNum} className={`rounded-xl border p-3 ${isCurrent ? "border-primary bg-primary/5" : isFuture ? "border-dashed border-border bg-secondary/30" : "border-border bg-card"}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{MONTH_NAMES_PT_SHORT[i]}</p>
+                  {isCurrent && (
+                    <span className="rounded-full bg-primary px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">Atual</span>
+                  )}
+                </div>
+                {isFuture ? (
+                  <p className="mt-3 text-[11px] italic text-muted-foreground">A faturar</p>
+                ) : uiStatus ? (
+                  <span className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[uiStatus]}`}>
+                    {uiStatus}
+                  </span>
+                ) : (
+                  <p className="mt-3 text-[11px] italic text-muted-foreground">Sem registro</p>
                 )}
               </div>
-              {isFuture ? (
-                <p className="mt-3 text-[11px] italic text-muted-foreground">A faturar</p>
-              ) : uiStatus ? (
-                <span className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[uiStatus]}`}>
-                  {uiStatus}
-                </span>
-              ) : (
-                <p className="mt-3 text-[11px] italic text-muted-foreground">Sem registro</p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -2867,7 +2900,7 @@ function DocumentsArchive({ condominioId }: { condominioId: string }) {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">
-                          {DOCUMENTO_TIPO_LABEL[doc.tipo]} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
+                          {doc.tipo} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
                         </p>
                         <p className="mt-0.5 truncate text-[11px] text-muted-foreground">PDF · {doc.nome_arquivo}</p>
                       </div>
@@ -2897,7 +2930,7 @@ function DocumentsArchive({ condominioId }: { condominioId: string }) {
 function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
   const [docs, setDocs] = useState<DocumentoRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tipo, setTipo] = useState<DocumentoTipo>("ata");
+  const [tipo, setTipo] = useState<string>("");
   const [mes, setMes] = useState<number>(new Date().getMonth() + 1);
   const [ano, setAno] = useState<number>(new Date().getFullYear());
   const [file, setFile] = useState<File | null>(null);
@@ -2919,6 +2952,7 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!tipo.trim()) { toast.error("Informe o tipo do documento."); return; }
     if (!file) { toast.error("Selecione um arquivo PDF."); return; }
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       toast.error("Envie apenas arquivos PDF.");
@@ -2926,14 +2960,16 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
     }
     setUploading(true);
     try {
-      const url = await uploadDocumentoPdf({ tipo, ano, mes, file });
+      const tipoLimpo = tipo.trim();
+      const url = await uploadDocumentoPdf({ tipo: tipoLimpo, ano, mes, file });
       await criarDocumento({
         condominio_id: condominioId,
-        tipo, mes, ano, url,
+        tipo: tipoLimpo, mes, ano, url,
         nome_arquivo: file.name,
       });
       toast.success("Documento enviado.");
       setFile(null);
+      setTipo("");
       await load();
     } catch (err) {
       console.error(err);
@@ -2981,15 +3017,13 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
         <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_2fr]">
           <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
             <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select value={tipo} onValueChange={(v) => setTipo(v as DocumentoTipo)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(DOCUMENTO_TIPO_LABEL) as DocumentoTipo[]).map((t) => (
-                    <SelectItem key={t} value={t}>{DOCUMENTO_TIPO_LABEL[t]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="doc-tipo">Tipo</Label>
+              <Input
+                id="doc-tipo"
+                value={tipo}
+                onChange={(e) => setTipo(e.target.value)}
+                placeholder="Ex: Ata de Assembleia, Balancete Março…"
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -3052,7 +3086,7 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium">
-                              {DOCUMENTO_TIPO_LABEL[doc.tipo]} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
+                              {doc.tipo} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
                             </p>
                             <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{doc.nome_arquivo}</p>
                           </div>
