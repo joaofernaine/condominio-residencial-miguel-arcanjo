@@ -468,14 +468,7 @@ export async function criarPauta(input: {
 
 // ---------- DOCUMENTOS ----------
 
-export type DocumentoTipo = "ata" | "balancete" | "regulamento" | "outro";
-
-export const DOCUMENTO_TIPO_LABEL: Record<DocumentoTipo, string> = {
-  ata: "Ata de Assembleia",
-  balancete: "Balancete",
-  regulamento: "Regulamento",
-  outro: "Outro",
-};
+export type DocumentoTipo = string;
 
 export type DocumentoRow = {
   id: string;
