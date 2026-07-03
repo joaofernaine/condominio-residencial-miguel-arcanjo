@@ -2980,15 +2980,13 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
         <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_2fr]">
           <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
             <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select value={tipo} onValueChange={(v) => setTipo(v as DocumentoTipo)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(DOCUMENTO_TIPO_LABEL) as DocumentoTipo[]).map((t) => (
-                    <SelectItem key={t} value={t}>{DOCUMENTO_TIPO_LABEL[t]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="doc-tipo">Tipo</Label>
+              <Input
+                id="doc-tipo"
+                value={tipo}
+                onChange={(e) => setTipo(e.target.value)}
+                placeholder="Ex: Ata de Assembleia, Balancete Março…"
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
