@@ -300,6 +300,19 @@ export async function atualizarHistorico(id: string, status: HistoricoRow["statu
   if (error) throw error;
 }
 
+export async function criarHistorico(input: {
+  condominio_id: string;
+  unidade_id: string;
+  ano: number;
+  mes: number;
+  status: HistoricoRow["status"];
+  valor: number;
+}) {
+  const { error } = await supabase.from("historico_financeiro").insert(input);
+  if (error) throw error;
+}
+
+
 export async function fetchMoradoresDoCondominio(condominioId: string) {
   const { data, error } = await supabase
     .from("profiles")
@@ -452,3 +465,78 @@ export async function criarPauta(input: {
   if (error) throw error;
 }
 
+
+// ---------- DOCUMENTOS ----------
+
+export type DocumentoTipo = "ata" | "balancete" | "regulamento" | "outro";
+
+export const DOCUMENTO_TIPO_LABEL: Record<DocumentoTipo, string> = {
+  ata: "Ata de Assembleia",
+  balancete: "Balancete",
+  regulamento: "Regulamento",
+  outro: "Outro",
+};
+
+export type DocumentoRow = {
+  id: string;
+  condominio_id: string;
+  tipo: DocumentoTipo;
+  mes: number;
+  ano: number;
+  url: string;
+  nome_arquivo: string;
+  created_at?: string;
+};
+
+const DOCUMENTOS_BUCKET = "documentos";
+let documentosBucketEnsured = false;
+
+async function ensureDocumentosBucket() {
+  if (documentosBucketEnsured) return;
+  await supabase.storage.createBucket(DOCUMENTOS_BUCKET, { public: true }).catch(() => {});
+  documentosBucketEnsured = true;
+}
+
+export async function uploadDocumentoPdf(input: {
+  tipo: DocumentoTipo;
+  ano: number;
+  mes: number;
+  file: File;
+}) {
+  await ensureDocumentosBucket();
+  const path = `${input.ano}/${input.mes}/${input.tipo}-${Date.now()}.pdf`;
+  const { error } = await supabase.storage
+    .from(DOCUMENTOS_BUCKET)
+    .upload(path, input.file, { upsert: false, contentType: "application/pdf" });
+  if (error) throw error;
+  const { data } = supabase.storage.from(DOCUMENTOS_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+export async function fetchDocumentos(condominioId: string) {
+  const { data, error } = await supabase
+    .from("documentos")
+    .select("id, condominio_id, tipo, mes, ano, url, nome_arquivo, created_at")
+    .eq("condominio_id", condominioId)
+    .order("ano", { ascending: false })
+    .order("mes", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as DocumentoRow[];
+}
+
+export async function criarDocumento(input: {
+  condominio_id: string;
+  tipo: DocumentoTipo;
+  mes: number;
+  ano: number;
+  url: string;
+  nome_arquivo: string;
+}) {
+  const { error } = await supabase.from("documentos").insert(input);
+  if (error) throw error;
+}
+
+export async function removerDocumento(id: string) {
+  const { error } = await supabase.from("documentos").delete().eq("id", id);
+  if (error) throw error;
+}

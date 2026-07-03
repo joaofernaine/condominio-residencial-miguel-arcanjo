@@ -90,8 +90,8 @@ import {
   RESERVATION_STATUS_STYLES,
   amenities,
   publicNotices,
-  DOCUMENTS_BY_YEAR,
   CLASSIFIEDS,
+
 } from "@/lib/mocks";
 import {
   type Profile,
@@ -134,8 +134,17 @@ import {
   atualizarMorador,
   removerMorador,
   fetchOcupacoesCondominio,
+  criarHistorico,
+  fetchDocumentos,
+  criarDocumento,
+  removerDocumento,
+  uploadDocumentoPdf,
+  DOCUMENTO_TIPO_LABEL,
+  type DocumentoRow,
+  type DocumentoTipo,
   type OcupacaoRow,
 } from "@/lib/portal-data";
+
 
 
 export const Route = createFileRoute("/")({
@@ -839,9 +848,6 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               <p className="mt-4 text-muted-foreground">
                 Situação de pagamento da sua unidade ({profile.unidade || "—"}) mês a mês.
               </p>
-              <div className="mt-8 rounded-2xl border border-dashed border-border bg-card/50 p-6 text-sm text-muted-foreground">
-                Documentos e balancetes serão exibidos aqui após integração.
-              </div>
             </div>
 
             <div>
@@ -851,9 +857,10 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                 <MyPaymentGrid rows={historico} year={currentYear} />
               )}
               <div className="mt-8">
-                <DocumentsArchive />
+                <DocumentsArchive condominioId={profile.condominio_id} />
               </div>
             </div>
+
           </div>
         </div>
       </section>
@@ -1236,16 +1243,33 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
     }
   };
 
-  const handleHistoricoChange = async (rowId: string, uiStatus: FinancialStatus) => {
+  const handleHistoricoChange = async (monthNum: number, uiStatus: FinancialStatus) => {
+    if (!historyUnitId) return;
+    const dbStatus = HISTORICO_UI_TO_DB[uiStatus];
+    const existing = historico.find(
+      (h) => h.unidade_id === historyUnitId && h.ano === currentYear && h.mes === monthNum,
+    );
     try {
-      await atualizarHistorico(rowId, HISTORICO_UI_TO_DB[uiStatus]);
-      setHistorico((prev) => prev.map((r) => (r.id === rowId ? { ...r, status: HISTORICO_UI_TO_DB[uiStatus] } : r)));
+      if (existing) {
+        await atualizarHistorico(existing.id, dbStatus);
+      } else {
+        await criarHistorico({
+          condominio_id: profile.condominio_id,
+          unidade_id: historyUnitId,
+          ano: currentYear,
+          mes: monthNum,
+          status: dbStatus,
+          valor: 0,
+        });
+      }
       toast.success(`Status atualizado para "${uiStatus}".`);
+      loadFinanceiro();
     } catch (e) {
       console.error(e);
       toast.error("Erro ao atualizar histórico.");
     }
   };
+
 
   const handleDeleteBloqueio = async (id: string) => {
     try {
@@ -1495,11 +1519,15 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         </div>
       </section>
 
+      {/* Documentos admin */}
+      <DocumentsAdminSection condominioId={profile.condominio_id} />
+
       <footer className="border-t border-border bg-background py-8">
         <div className="mx-auto max-w-7xl px-6 text-center text-sm text-muted-foreground">
           © {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo · Painel administrativo
         </div>
       </footer>
+
 
       <NewMoradorDialog
         open={newMoradorOpen}
@@ -2769,8 +2797,38 @@ function EditObraDialog({
 
 // ================== DOCUMENTS ARCHIVE ==================
 
-function DocumentsArchive() {
-  if (DOCUMENTS_BY_YEAR.length === 0) {
+function DocumentsArchive({ condominioId }: { condominioId: string }) {
+  const [docs, setDocs] = useState<DocumentoRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setDocs(await fetchDocumentos(condominioId));
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao carregar documentos.");
+    } finally {
+      setLoading(false);
+    }
+  }, [condominioId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const byYear = useMemo(() => {
+    const groups = new Map<number, DocumentoRow[]>();
+    docs.forEach((d) => {
+      if (!groups.has(d.ano)) groups.set(d.ano, []);
+      groups.get(d.ano)!.push(d);
+    });
+    return Array.from(groups.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([year, items]) => ({ year, items }));
+  }, [docs]);
+
+  if (loading) return <LoadingBlock label="Carregando documentos…" />;
+
+  if (byYear.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
         Nenhum documento publicado ainda.
@@ -2778,10 +2836,9 @@ function DocumentsArchive() {
     );
   }
 
-  const currentMonthKey = DOCUMENTS_BY_YEAR[0]?.months[0]?.key ?? "";
   return (
     <div className="space-y-6">
-      {DOCUMENTS_BY_YEAR.map((yearGroup, yi) => (
+      {byYear.map((yearGroup, yi) => (
         <div key={yearGroup.year} className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
           <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-5 py-3">
             <div className="flex items-center gap-2">
@@ -2789,48 +2846,248 @@ function DocumentsArchive() {
               <h3 className="font-display text-lg font-semibold">{yearGroup.year}</h3>
             </div>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {yearGroup.months.reduce((sum, m) => sum + m.docs.length, 0)} arquivos
+              {yearGroup.items.length} {yearGroup.items.length === 1 ? "arquivo" : "arquivos"}
             </span>
           </div>
-          <Accordion type="multiple" defaultValue={yi === 0 ? [currentMonthKey] : []} className="px-2">
-            {yearGroup.months.map((m) => (
-              <AccordionItem key={m.key} value={m.key} className="border-b last:border-b-0">
-                <AccordionTrigger className="px-3 hover:no-underline [&[data-state=open]_.folder-closed]:hidden [&[data-state=closed]_.folder-open]:hidden">
-                  <div className="flex items-center gap-3">
-                    <Folder className="folder-closed h-4 w-4 text-muted-foreground" />
-                    <FolderOpen className="folder-open h-4 w-4 text-primary" />
-                    <span className="text-sm font-semibold">{m.name}</span>
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-secondary-foreground">
-                      {m.docs.length} {m.docs.length === 1 ? "doc" : "docs"}
-                    </span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-3">
-                  <ul className="space-y-2 pl-7">
-                    {m.docs.map((doc) => (
-                      <li key={doc.title} className="group flex items-center gap-3 rounded-lg border border-border bg-background p-3 transition-all hover:border-[color:var(--sage)]">
-                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-secondary text-primary">
-                          <FileText className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{doc.title}</p>
-                          <p className="mt-0.5 text-[11px] text-muted-foreground">PDF · {doc.size}</p>
-                        </div>
-                        <Button size="icon" variant="ghost" onClick={() => toast.info(`Baixando "${doc.title}"…`)} aria-label={`Baixar ${doc.title}`} className="shrink-0 rounded-full text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
+          <Accordion type="multiple" defaultValue={yi === 0 ? [`y-${yearGroup.year}`] : []} className="px-2">
+            <AccordionItem value={`y-${yearGroup.year}`} className="border-b-0">
+              <AccordionTrigger className="px-3 hover:no-underline [&[data-state=open]_.folder-closed]:hidden [&[data-state=closed]_.folder-open]:hidden">
+                <div className="flex items-center gap-3">
+                  <Folder className="folder-closed h-4 w-4 text-muted-foreground" />
+                  <FolderOpen className="folder-open h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Todos os documentos</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-3">
+                <ul className="space-y-2 pl-7">
+                  {yearGroup.items.map((doc) => (
+                    <li key={doc.id} className="group flex items-center gap-3 rounded-lg border border-border bg-background p-3 transition-all hover:border-[color:var(--sage)]">
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-secondary text-primary">
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {DOCUMENTO_TIPO_LABEL[doc.tipo]} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">PDF · {doc.nome_arquivo}</p>
+                      </div>
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Baixar ${doc.nome_arquivo}`}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground"
+                      >
+                        <Download className="h-4 w-4" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
           </Accordion>
         </div>
       ))}
     </div>
   );
 }
+
+// ================== DOCUMENTS ADMIN ==================
+
+function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
+  const [docs, setDocs] = useState<DocumentoRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tipo, setTipo] = useState<DocumentoTipo>("ata");
+  const [mes, setMes] = useState<number>(new Date().getMonth() + 1);
+  const [ano, setAno] = useState<number>(new Date().getFullYear());
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setDocs(await fetchDocumentos(condominioId));
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao carregar documentos.");
+    } finally {
+      setLoading(false);
+    }
+  }, [condominioId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) { toast.error("Selecione um arquivo PDF."); return; }
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast.error("Envie apenas arquivos PDF.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadDocumentoPdf({ tipo, ano, mes, file });
+      await criarDocumento({
+        condominio_id: condominioId,
+        tipo, mes, ano, url,
+        nome_arquivo: file.name,
+      });
+      toast.success("Documento enviado.");
+      setFile(null);
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao enviar documento.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemove = async (id: string) => {
+    try {
+      await removerDocumento(id);
+      toast.success("Documento removido.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao remover documento.");
+    }
+  };
+
+  const byYear = useMemo(() => {
+    const groups = new Map<number, DocumentoRow[]>();
+    docs.forEach((d) => {
+      if (!groups.has(d.ano)) groups.set(d.ano, []);
+      groups.get(d.ano)!.push(d);
+    });
+    return Array.from(groups.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([year, items]) => ({ year, items }));
+  }, [docs]);
+
+  return (
+    <section className="bg-secondary/40 py-16">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="max-w-2xl">
+          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+            <FileText className="h-3.5 w-3.5" /> Documentos
+          </span>
+          <h2 className="mt-3 text-3xl font-medium md:text-4xl">Atas, balancetes e mais</h2>
+          <p className="mt-4 text-muted-foreground">
+            Envie PDFs oficiais para que os moradores tenham acesso pelo portal.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_2fr]">
+          <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={tipo} onValueChange={(v) => setTipo(v as DocumentoTipo)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(DOCUMENTO_TIPO_LABEL) as DocumentoTipo[]).map((t) => (
+                    <SelectItem key={t} value={t}>{DOCUMENTO_TIPO_LABEL[t]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Mês</Label>
+                <Select value={String(mes)} onValueChange={(v) => setMes(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>
+                        {MONTH_NAMES_PT[i]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-ano">Ano</Label>
+                <Input id="doc-ano" type="number" min={2000} max={2100} value={ano} onChange={(e) => setAno(Number(e.target.value))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="doc-file">Arquivo (PDF)</Label>
+              <Input
+                id="doc-file"
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+              {file && <p className="text-[11px] text-muted-foreground truncate">{file.name}</p>}
+            </div>
+            <Button type="submit" className="w-full rounded-full" disabled={uploading}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Enviar documento
+            </Button>
+          </form>
+
+          <div>
+            {loading ? (
+              <LoadingBlock label="Carregando documentos…" />
+            ) : byYear.length === 0 ? (
+              <EmptyState>Nenhum documento publicado ainda.</EmptyState>
+            ) : (
+              <div className="space-y-6">
+                {byYear.map((yearGroup) => (
+                  <div key={yearGroup.year} className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+                    <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <CalendarIcon className="h-4 w-4 text-primary" />
+                        <h3 className="font-display text-lg font-semibold">{yearGroup.year}</h3>
+                      </div>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {yearGroup.items.length} {yearGroup.items.length === 1 ? "arquivo" : "arquivos"}
+                      </span>
+                    </div>
+                    <ul className="divide-y divide-border">
+                      {yearGroup.items.map((doc) => (
+                        <li key={doc.id} className="group flex items-center gap-3 p-4">
+                          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-secondary text-primary">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {DOCUMENTO_TIPO_LABEL[doc.tipo]} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{doc.nome_arquivo}</p>
+                          </div>
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
+                            aria-label="Baixar"
+                          >
+                            <Download className="h-4 w-4" />
+                          </a>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleRemove(doc.id)}
+                            aria-label="Remover"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 
 // ================== PAYMENT HISTORY DIALOG (admin) ==================
 
@@ -2847,8 +3104,9 @@ function PaymentHistoryDialog({
   historico: HistoricoRow[];
   year: number;
   onClose: () => void;
-  onChange: (rowId: string, status: FinancialStatus) => void;
+  onChange: (monthNum: number, status: FinancialStatus) => void;
 }) {
+
   const morador = moradorId ? moradores.find((m) => m.id === moradorId) ?? null : null;
   const rowsByMonth = new Map<number, HistoricoRow>();
   if (moradorId) {
@@ -2893,7 +3151,7 @@ function PaymentHistoryDialog({
                   {isFuture ? (
                     <p className="mt-3 text-[11px] italic text-muted-foreground">A faturar</p>
                   ) : row && uiStatus ? (
-                    <Select value={uiStatus} onValueChange={(v) => onChange(row.id, v as FinancialStatus)}>
+                    <Select value={uiStatus} onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
                       <SelectTrigger className={`mt-2 h-8 w-full border-0 px-2 text-[11px] font-bold uppercase tracking-wider ${STATUS_STYLES[uiStatus]}`}>
                         <SelectValue />
                       </SelectTrigger>
@@ -2904,8 +3162,18 @@ function PaymentHistoryDialog({
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="mt-3 text-[11px] italic text-muted-foreground">Sem registro</p>
+                    <Select value="" onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
+                      <SelectTrigger className="mt-2 h-8 w-full border border-dashed border-border bg-secondary/30 px-2 text-[11px] italic text-muted-foreground">
+                        <SelectValue placeholder="Sem registro" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Em dia">Em dia (Pago)</SelectItem>
+                        <SelectItem value="Pendente">Pendente</SelectItem>
+                        <SelectItem value="Atrasado">Atrasado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   )}
+
                 </div>
               );
             })}
