@@ -2918,6 +2918,7 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!tipo.trim()) { toast.error("Informe o tipo do documento."); return; }
     if (!file) { toast.error("Selecione um arquivo PDF."); return; }
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       toast.error("Envie apenas arquivos PDF.");
@@ -2925,14 +2926,16 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
     }
     setUploading(true);
     try {
-      const url = await uploadDocumentoPdf({ tipo, ano, mes, file });
+      const tipoLimpo = tipo.trim();
+      const url = await uploadDocumentoPdf({ tipo: tipoLimpo, ano, mes, file });
       await criarDocumento({
         condominio_id: condominioId,
-        tipo, mes, ano, url,
+        tipo: tipoLimpo, mes, ano, url,
         nome_arquivo: file.name,
       });
       toast.success("Documento enviado.");
       setFile(null);
+      setTipo("");
       await load();
     } catch (err) {
       console.error(err);
