@@ -1572,17 +1572,13 @@ function NewMoradorDialog({
     }
     setSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke("criar-morador", {
-        body: {
-          email: email.trim(),
-          nome_completo: nome.trim(),
-          bloco,
-          apartamento: apartamento.trim(),
-          condominio_id: condominioId,
-        },
+      await criarMorador({
+        condominio_id: condominioId,
+        nome_completo: nome.trim(),
+        email: email.trim(),
+        bloco,
+        apartamento: apartamento.trim(),
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       toast.success("Morador cadastrado! Senha provisória: Mudar@123");
       reset();
       onOpenChange(false);
