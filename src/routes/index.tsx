@@ -2877,6 +2877,10 @@ function DocumentsArchive({ condominioId }: { condominioId: string }) {
     carregarDocs();
   }, [carregarDocs]);
 
+  useEffect(() => {
+    if (anos.length > 0 && !anos.includes(ano)) setAno(anos[0]);
+  }, [anos, ano]);
+
   if (loading) return <LoadingBlock label="Carregando documentos…" />;
 
   if (anos.length === 0 && docs.length === 0) {
