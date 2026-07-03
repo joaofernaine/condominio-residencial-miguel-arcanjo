@@ -412,22 +412,22 @@ export async function uploadObraFoto(obraId: string, file: File) {
 export async function criarMorador(input: {
   condominio_id: string;
   nome_completo: string;
-  unidade: string;
+  email: string;
+  bloco: string;
+  apartamento: string;
 }) {
-  const { data, error } = await supabase
-    .from("profiles")
-    .insert({
-      condominio_id: input.condominio_id,
+  const { data, error } = await supabase.functions.invoke("criar-morador", {
+    body: {
+      email: input.email,
       nome_completo: input.nome_completo,
-      unidade: input.unidade,
-      role: "morador",
-      primeiro_acesso: true,
-      auth_user_id: null,
-    })
-    .select("id, nome_completo, unidade, role")
-    .single();
+      bloco: input.bloco,
+      apartamento: input.apartamento,
+      condominio_id: input.condominio_id,
+    },
+  });
   if (error) throw error;
-  return data as { id: string; nome_completo: string; unidade: string; role: Role };
+  if (data?.error) throw new Error(data.error);
+  return data;
 }
 
 export async function criarObra(input: {
