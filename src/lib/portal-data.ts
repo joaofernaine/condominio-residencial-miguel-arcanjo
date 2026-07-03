@@ -523,6 +523,48 @@ export async function fetchDocumentos(condominioId: string) {
   return (data ?? []) as DocumentoRow[];
 }
 
+export async function fetchAnosDocumentos(condominioId: string) {
+  const { data, error } = await supabase
+    .from("documentos")
+    .select("ano", { count: "exact", head: false })
+    .eq("condominio_id", condominioId)
+    .order("ano", { ascending: false });
+  if (error) throw error;
+  const anos = new Set<number>();
+  (data ?? []).forEach((row) => typeof row.ano === "number" && anos.add(row.ano));
+  return Array.from(anos);
+}
+
+export async function fetchTiposDocumentos(condominioId: string) {
+  const { data, error } = await supabase
+    .from("documentos")
+    .select("tipo")
+    .eq("condominio_id", condominioId)
+    .order("tipo", { ascending: true });
+  if (error) throw error;
+  const tipos = new Set<string>();
+  (data ?? []).forEach((row) => typeof row.tipo === "string" && row.tipo.trim() && tipos.add(row.tipo.trim()));
+  return Array.from(tipos);
+}
+
+export async function fetchDocumentosFiltrados(
+  condominioId: string,
+  filtros: { ano?: number; tipo?: string; mes?: number },
+) {
+  let q = supabase
+    .from("documentos")
+    .select("id, condominio_id, tipo, mes, ano, url, nome_arquivo, created_at")
+    .eq("condominio_id", condominioId)
+    .eq("ano", filtros.ano ?? new Date().getFullYear());
+  if (filtros.tipo) q = q.eq("tipo", filtros.tipo);
+  if (filtros.mes != null) q = q.eq("mes", filtros.mes);
+
+  const { data, error } = await q.order("mes", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as DocumentoRow[];
+}
+
+
 export async function criarDocumento(input: {
   condominio_id: string;
   tipo: DocumentoTipo;
