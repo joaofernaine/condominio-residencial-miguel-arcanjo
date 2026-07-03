@@ -1521,11 +1521,15 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         </div>
       </section>
 
+      {/* Documentos admin */}
+      <DocumentsAdminSection condominioId={profile.condominio_id} />
+
       <footer className="border-t border-border bg-background py-8">
         <div className="mx-auto max-w-7xl px-6 text-center text-sm text-muted-foreground">
           © {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo · Painel administrativo
         </div>
       </footer>
+
 
       <NewMoradorDialog
         open={newMoradorOpen}
