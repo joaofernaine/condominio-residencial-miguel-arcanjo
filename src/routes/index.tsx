@@ -136,6 +136,9 @@ import {
   fetchOcupacoesCondominio,
   criarHistorico,
   fetchDocumentos,
+  fetchAnosDocumentos,
+  fetchTiposDocumentos,
+  fetchDocumentosFiltrados,
   criarDocumento,
   removerDocumento,
   uploadDocumentoPdf,
@@ -2831,37 +2834,56 @@ function EditObraDialog({
 // ================== DOCUMENTS ARCHIVE ==================
 
 function DocumentsArchive({ condominioId }: { condominioId: string }) {
+  const anoAtual = new Date().getFullYear();
   const [docs, setDocs] = useState<DocumentoRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [anos, setAnos] = useState<number[]>([]);
+  const [tipos, setTipos] = useState<string[]>([]);
+  const [ano, setAno] = useState<number>(anoAtual);
+  const [tipo, setTipo] = useState<string>("todos");
+  const [mes, setMes] = useState<string>("todos");
 
-  const load = useCallback(async () => {
+  const carregarFiltros = useCallback(async () => {
+    try {
+      const [a, t] = await Promise.all([fetchAnosDocumentos(condominioId), fetchTiposDocumentos(condominioId)]);
+      setAnos(a);
+      setTipos(t);
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao carregar filtros de documentos.");
+    }
+  }, [condominioId]);
+
+  const carregarDocs = useCallback(async () => {
     setLoading(true);
     try {
-      setDocs(await fetchDocumentos(condominioId));
+      const filtros: { ano: number; tipo?: string; mes?: number } = { ano };
+      if (tipo !== "todos") filtros.tipo = tipo;
+      if (mes !== "todos") filtros.mes = parseInt(mes, 10);
+      setDocs(await fetchDocumentosFiltrados(condominioId, filtros));
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar documentos.");
     } finally {
       setLoading(false);
     }
-  }, [condominioId]);
+  }, [condominioId, ano, tipo, mes]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    carregarFiltros();
+  }, [carregarFiltros]);
 
-  const byYear = useMemo(() => {
-    const groups = new Map<number, DocumentoRow[]>();
-    docs.forEach((d) => {
-      if (!groups.has(d.ano)) groups.set(d.ano, []);
-      groups.get(d.ano)!.push(d);
-    });
-    return Array.from(groups.entries())
-      .sort((a, b) => b[0] - a[0])
-      .map(([year, items]) => ({ year, items }));
-  }, [docs]);
+  useEffect(() => {
+    carregarDocs();
+  }, [carregarDocs]);
+
+  useEffect(() => {
+    if (anos.length > 0 && !anos.includes(ano)) setAno(anos[0]);
+  }, [anos, ano]);
 
   if (loading) return <LoadingBlock label="Carregando documentos…" />;
 
-  if (byYear.length === 0) {
+  if (anos.length === 0 && docs.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
         Nenhum documento publicado ainda.
@@ -2870,57 +2892,98 @@ function DocumentsArchive({ condominioId }: { condominioId: string }) {
   }
 
   return (
-    <div className="space-y-6">
-      {byYear.map((yearGroup, yi) => (
-        <div key={yearGroup.year} className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="filtro-ano" className="text-xs font-medium text-muted-foreground">Ano</Label>
+          <Select value={String(ano)} onValueChange={(v) => setAno(Number(v))}>
+            <SelectTrigger id="filtro-ano" className="w-[120px]">
+              <SelectValue placeholder="Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              {anos.map((a) => (
+                <SelectItem key={a} value={String(a)}>{a}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="filtro-tipo" className="text-xs font-medium text-muted-foreground">Tipo</Label>
+          <Select value={tipo} onValueChange={setTipo}>
+            <SelectTrigger id="filtro-tipo" className="w-[200px]">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              {tipos.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="filtro-mes" className="text-xs font-medium text-muted-foreground">Mês</Label>
+          <Select value={mes} onValueChange={setMes}>
+            <SelectTrigger id="filtro-mes" className="w-[180px]">
+              <SelectValue placeholder="Mês" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os meses</SelectItem>
+              {MONTH_NAMES_PT.map((nome, i) => (
+                <SelectItem key={i + 1} value={String(i + 1)}>{nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        {docs.length} {docs.length === 1 ? "documento encontrado" : "documentos encontrados"}
+      </p>
+
+      {docs.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
+          Nenhum documento encontrado para os filtros selecionados.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
           <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-5 py-3">
             <div className="flex items-center gap-2">
               <CalendarIcon className="h-4 w-4 text-primary" />
-              <h3 className="font-display text-lg font-semibold">{yearGroup.year}</h3>
+              <h3 className="font-display text-lg font-semibold">{ano}</h3>
             </div>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {yearGroup.items.length} {yearGroup.items.length === 1 ? "arquivo" : "arquivos"}
+              {docs.length} {docs.length === 1 ? "arquivo" : "arquivos"}
             </span>
           </div>
-          <Accordion type="multiple" defaultValue={yi === 0 ? [`y-${yearGroup.year}`] : []} className="px-2">
-            <AccordionItem value={`y-${yearGroup.year}`} className="border-b-0">
-              <AccordionTrigger className="px-3 hover:no-underline [&[data-state=open]_.folder-closed]:hidden [&[data-state=closed]_.folder-open]:hidden">
-                <div className="flex items-center gap-3">
-                  <Folder className="folder-closed h-4 w-4 text-muted-foreground" />
-                  <FolderOpen className="folder-open h-4 w-4 text-primary" />
-                  <span className="text-sm font-semibold">Todos os documentos</span>
+          <ul className="space-y-2 p-4">
+            {docs.map((doc) => (
+              <li key={doc.id} className="group flex items-center gap-3 rounded-lg border border-border bg-background p-3 transition-all hover:border-[color:var(--sage)]">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-secondary text-primary">
+                  <FileText className="h-4 w-4" />
                 </div>
-              </AccordionTrigger>
-              <AccordionContent className="px-3">
-                <ul className="space-y-2 pl-7">
-                  {yearGroup.items.map((doc) => (
-                    <li key={doc.id} className="group flex items-center gap-3 rounded-lg border border-border bg-background p-3 transition-all hover:border-[color:var(--sage)]">
-                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-secondary text-primary">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {doc.tipo} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
-                        </p>
-                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">PDF · {doc.nome_arquivo}</p>
-                      </div>
-                      <a
-                        href={doc.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Baixar ${doc.nome_arquivo}`}
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground"
-                      >
-                        <Download className="h-4 w-4" />
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {doc.tipo} — {MONTH_NAMES_PT_SHORT[doc.mes - 1]}/{doc.ano}
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">PDF · {doc.nome_arquivo}</p>
+                </div>
+                <a
+                  href={doc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Baixar ${doc.nome_arquivo}`}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
-      ))}
+      )}
     </div>
   );
 }
