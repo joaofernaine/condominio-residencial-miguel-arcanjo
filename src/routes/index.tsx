@@ -126,7 +126,6 @@ import {
   removerAtualizacaoObra,
   atualizarObra,
   uploadObraFoto,
-  criarMorador,
   criarObra,
   criarPauta,
   criarBloqueio,
@@ -1559,31 +1558,40 @@ function NewMoradorDialog({
 }) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
-  const [unidade, setUnidade] = useState("");
+  const [bloco, setBloco] = useState<"A" | "B">("A");
+  const [apartamento, setApartamento] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const reset = () => { setNome(""); setEmail(""); setUnidade(""); };
+  const reset = () => { setNome(""); setEmail(""); setBloco("A"); setApartamento(""); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome.trim() || !unidade.trim()) {
-      toast.error("Preencha nome e unidade.");
+    if (!nome.trim() || !email.trim() || !apartamento.trim()) {
+      toast.error("Preencha nome, email e apartamento.");
       return;
     }
     setSaving(true);
     try {
-      await criarMorador({
-        condominio_id: condominioId,
-        nome_completo: nome.trim(),
-        unidade: unidade.trim(),
+      const { data, error } = await supabase.functions.invoke("criar-morador", {
+        body: {
+          email: email.trim(),
+          nome_completo: nome.trim(),
+          bloco,
+          apartamento: apartamento.trim(),
+          condominio_id: condominioId,
+        },
       });
-      toast.success("Morador cadastrado. Envie o convite por email quando o fluxo estiver ativo.");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Morador cadastrado! Senha provisória: Mudar@123");
       reset();
       onOpenChange(false);
       onCreated();
     } catch (err) {
       console.error(err);
-      toast.error("Erro ao cadastrar morador.");
+      toast.error(
+        err instanceof Error ? `Erro ao cadastrar: ${err.message}` : "Erro ao cadastrar morador.",
+      );
     } finally {
       setSaving(false);
     }
@@ -1595,7 +1603,7 @@ function NewMoradorDialog({
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">Cadastrar morador</DialogTitle>
           <DialogDescription>
-            O morador receberá acesso ao portal quando o fluxo de convite por email for ativado.
+            Uma conta será criada com senha provisória <strong>Mudar@123</strong>.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -1605,11 +1613,23 @@ function NewMoradorDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="nm-email">Email</Label>
-            <Input id="nm-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="opcional por enquanto" />
+            <Input id="nm-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="nm-un">Unidade</Label>
-            <Input id="nm-un" value={unidade} onChange={(e) => setUnidade(e.target.value)} placeholder="Ex.: 101" required />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="nm-bloco">Bloco</Label>
+              <Select value={bloco} onValueChange={(v) => setBloco(v as "A" | "B")}>
+                <SelectTrigger id="nm-bloco"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">A</SelectItem>
+                  <SelectItem value="B">B</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nm-apto">Apartamento</Label>
+              <Input id="nm-apto" value={apartamento} onChange={(e) => setApartamento(e.target.value)} placeholder="Ex.: 301" required />
+            </div>
           </div>
           <Button type="submit" className="w-full rounded-full" disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
