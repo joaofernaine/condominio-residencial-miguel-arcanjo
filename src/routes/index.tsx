@@ -134,8 +134,17 @@ import {
   atualizarMorador,
   removerMorador,
   fetchOcupacoesCondominio,
+  criarHistorico,
+  fetchDocumentos,
+  criarDocumento,
+  removerDocumento,
+  uploadDocumentoPdf,
+  DOCUMENTO_TIPO_LABEL,
+  type DocumentoRow,
+  type DocumentoTipo,
   type OcupacaoRow,
 } from "@/lib/portal-data";
+
 
 
 export const Route = createFileRoute("/")({
