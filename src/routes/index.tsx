@@ -848,9 +848,6 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               <p className="mt-4 text-muted-foreground">
                 Situação de pagamento da sua unidade ({profile.unidade || "—"}) mês a mês.
               </p>
-              <div className="mt-8 rounded-2xl border border-dashed border-border bg-card/50 p-6 text-sm text-muted-foreground">
-                Documentos e balancetes serão exibidos aqui após integração.
-              </div>
             </div>
 
             <div>
@@ -860,9 +857,10 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                 <MyPaymentGrid rows={historico} year={currentYear} />
               )}
               <div className="mt-8">
-                <DocumentsArchive />
+                <DocumentsArchive condominioId={profile.condominio_id} />
               </div>
             </div>
+
           </div>
         </div>
       </section>
