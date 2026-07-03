@@ -139,7 +139,6 @@ import {
   criarDocumento,
   removerDocumento,
   uploadDocumentoPdf,
-  DOCUMENTO_TIPO_LABEL,
   type DocumentoRow,
   type DocumentoTipo,
   type OcupacaoRow,
