@@ -300,6 +300,19 @@ export async function atualizarHistorico(id: string, status: HistoricoRow["statu
   if (error) throw error;
 }
 
+export async function criarHistorico(input: {
+  condominio_id: string;
+  unidade_id: string;
+  ano: number;
+  mes: number;
+  status: HistoricoRow["status"];
+  valor: number;
+}) {
+  const { error } = await supabase.from("historico_financeiro").insert(input);
+  if (error) throw error;
+}
+
+
 export async function fetchMoradoresDoCondominio(condominioId: string) {
   const { data, error } = await supabase
     .from("profiles")
