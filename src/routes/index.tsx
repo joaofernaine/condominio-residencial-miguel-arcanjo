@@ -1245,16 +1245,33 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
     }
   };
 
-  const handleHistoricoChange = async (rowId: string, uiStatus: FinancialStatus) => {
+  const handleHistoricoChange = async (monthNum: number, uiStatus: FinancialStatus) => {
+    if (!historyUnitId) return;
+    const dbStatus = HISTORICO_UI_TO_DB[uiStatus];
+    const existing = historico.find(
+      (h) => h.unidade_id === historyUnitId && h.ano === currentYear && h.mes === monthNum,
+    );
     try {
-      await atualizarHistorico(rowId, HISTORICO_UI_TO_DB[uiStatus]);
-      setHistorico((prev) => prev.map((r) => (r.id === rowId ? { ...r, status: HISTORICO_UI_TO_DB[uiStatus] } : r)));
+      if (existing) {
+        await atualizarHistorico(existing.id, dbStatus);
+      } else {
+        await criarHistorico({
+          condominio_id: profile.condominio_id,
+          unidade_id: historyUnitId,
+          ano: currentYear,
+          mes: monthNum,
+          status: dbStatus,
+          valor: 0,
+        });
+      }
       toast.success(`Status atualizado para "${uiStatus}".`);
+      loadFinanceiro();
     } catch (e) {
       console.error(e);
       toast.error("Erro ao atualizar histórico.");
     }
   };
+
 
   const handleDeleteBloqueio = async (id: string) => {
     try {
