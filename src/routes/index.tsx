@@ -126,7 +126,6 @@ import {
   removerAtualizacaoObra,
   atualizarObra,
   uploadObraFoto,
-  criarMorador,
   criarObra,
   criarPauta,
   criarBloqueio,
