@@ -127,6 +127,7 @@ import {
   atualizarObra,
   uploadObraFoto,
   criarObra,
+  criarMorador,
   criarPauta,
   criarBloqueio,
   removerReserva,
