@@ -497,7 +497,13 @@ export async function uploadDocumentoPdf(input: {
   file: File;
 }) {
   await ensureDocumentosBucket();
-  const path = `${input.ano}/${input.mes}/${input.tipo}-${Date.now()}.pdf`;
+  const slug = input.tipo
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || "documento";
+  const path = `${input.ano}/${input.mes}/${slug}-${Date.now()}.pdf`;
   const { error } = await supabase.storage
     .from(DOCUMENTOS_BUCKET)
     .upload(path, input.file, { upsert: false, contentType: "application/pdf" });
