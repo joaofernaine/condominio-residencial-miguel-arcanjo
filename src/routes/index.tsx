@@ -591,6 +591,28 @@ function LoadingBlock({ label = "Carregando…" }: { label?: string }) {
 // ================== PUBLIC LANDING ==================
 
 function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
+  const [config, setConfig] = useState<CondominioConfigRow | null>(null);
+  const [amenidades, setAmenidades] = useState<AmenidadeRow[]>([]);
+  const [avisos, setAvisos] = useState<AvisoPublicoRow[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      fetchCondominioConfig(LANDING_CONDOMINIO_ID).catch(() => null),
+      fetchAmenidades(LANDING_CONDOMINIO_ID).catch(() => []),
+      fetchAvisosPublicosAtivos(LANDING_CONDOMINIO_ID).catch(() => []),
+    ]).then(([c, a, av]) => {
+      if (!alive) return;
+      setConfig(c);
+      setAmenidades(a);
+      setAvisos(av);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const sobreTitulo = config?.sobre_titulo?.trim() || "Um ambiente pensado para o seu bem-estar";
+  const sobreDescricao = config?.sobre_descricao?.trim() || "";
+
   return (
     <>
       <header className="absolute top-0 z-30 w-full">
@@ -643,20 +665,25 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
             <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
               <Sparkles className="h-3.5 w-3.5" /> Sobre o condomínio
             </span>
-            <h2 className="mt-3 text-4xl font-medium md:text-5xl">Um ambiente pensado para o seu bem-estar</h2>
+            <h2 className="mt-3 text-4xl font-medium md:text-5xl">{sobreTitulo}</h2>
+            {sobreDescricao && (
+              <p className="mt-4 text-lg leading-relaxed text-muted-foreground whitespace-pre-line">{sobreDescricao}</p>
+            )}
           </div>
           <div id="estrutura" className="mt-14">
-            {amenities.length === 0 ? (
-              <EmptyState>Cadastre as comodidades no Supabase para exibi-las aqui.</EmptyState>
+            {amenidades.length === 0 ? (
+              <EmptyState>Nenhuma comodidade cadastrada ainda.</EmptyState>
             ) : (
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                {amenities.map((a) => (
-                  <div key={a.title} className="group rounded-2xl border border-border bg-card p-6 transition-all hover:-translate-y-1 hover:border-[color:var(--sage)] hover:shadow-[var(--shadow-soft)]">
+                {amenidades.map((a) => (
+                  <div key={a.id} className="group rounded-2xl border border-border bg-card p-6 transition-all hover:-translate-y-1 hover:border-[color:var(--sage)] hover:shadow-[var(--shadow-soft)]">
                     <div className="grid h-12 w-12 place-items-center rounded-xl bg-secondary text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                      <a.icon className="h-5 w-5" />
+                      <AmenidadeIcon icone={a.icone} className="h-5 w-5" />
                     </div>
-                    <h3 className="mt-5 text-lg font-semibold">{a.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{a.body}</p>
+                    <h3 className="mt-5 text-lg font-semibold">{a.nome}</h3>
+                    {a.descricao && (
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{a.descricao}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -679,18 +706,20 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
             </button>
           </div>
           <div className="mt-12">
-            {publicNotices.length === 0 ? (
+            {avisos.length === 0 ? (
               <EmptyState>Nenhum aviso publicado ainda.</EmptyState>
             ) : (
               <div className="grid gap-6 md:grid-cols-3">
-                {publicNotices.map((n) => (
-                  <article key={n.title} className="group flex flex-col rounded-2xl border border-border bg-card p-7 transition-all hover:-translate-y-1 hover:shadow-[var(--shadow-soft)]">
+                {avisos.map((n) => (
+                  <article key={n.id} className="group flex flex-col rounded-2xl border border-border bg-card p-7 transition-all hover:-translate-y-1 hover:shadow-[var(--shadow-soft)]">
                     <div className="flex items-center justify-between">
-                      <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">{n.tag}</span>
-                      <time className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{n.date}</time>
+                      <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">Aviso</span>
+                      <time className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        {new Date(n.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                      </time>
                     </div>
-                    <h3 className="mt-6 text-xl font-semibold leading-snug">{n.title}</h3>
-                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{n.body}</p>
+                    <h3 className="mt-6 text-xl font-semibold leading-snug">{n.titulo}</h3>
+                    <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{n.conteudo}</p>
                   </article>
                 ))}
               </div>
