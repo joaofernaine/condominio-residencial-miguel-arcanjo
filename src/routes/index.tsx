@@ -3570,3 +3570,386 @@ function ConfirmDeleteMoradorDialog({
   );
 }
 
+
+// ================== LANDING CONFIG SECTION (síndica) ==================
+
+function LandingConfigSection({ condominioId }: { condominioId: string }) {
+  // Sobre o condomínio
+  const [sobreTitulo, setSobreTitulo] = useState("");
+  const [sobreDescricao, setSobreDescricao] = useState("");
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
+
+  // Amenidades
+  const [amenidades, setAmenidades] = useState<AmenidadeRow[]>([]);
+  const [amenidadesLoading, setAmenidadesLoading] = useState(true);
+  const [amenidadeEdit, setAmenidadeEdit] = useState<AmenidadeRow | null>(null);
+  const [amenidadeNew, setAmenidadeNew] = useState(false);
+
+  // Avisos públicos
+  const [avisos, setAvisos] = useState<AvisoPublicoRow[]>([]);
+  const [avisosLoading, setAvisosLoading] = useState(true);
+  const [avisoNew, setAvisoNew] = useState(false);
+
+  const loadConfig = useCallback(async () => {
+    setConfigLoading(true);
+    try {
+      const c = await fetchCondominioConfig(condominioId);
+      setSobreTitulo(c?.sobre_titulo ?? "");
+      setSobreDescricao(c?.sobre_descricao ?? "");
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao carregar configuração da landing.");
+    } finally {
+      setConfigLoading(false);
+    }
+  }, [condominioId]);
+
+  const loadAmenidades = useCallback(async () => {
+    setAmenidadesLoading(true);
+    try { setAmenidades(await fetchAmenidades(condominioId)); }
+    catch (e) { console.error(e); toast.error("Erro ao carregar amenidades."); }
+    finally { setAmenidadesLoading(false); }
+  }, [condominioId]);
+
+  const loadAvisos = useCallback(async () => {
+    setAvisosLoading(true);
+    try { setAvisos(await fetchAvisosPublicos(condominioId)); }
+    catch (e) { console.error(e); toast.error("Erro ao carregar avisos."); }
+    finally { setAvisosLoading(false); }
+  }, [condominioId]);
+
+  useEffect(() => {
+    loadConfig(); loadAmenidades(); loadAvisos();
+  }, [loadConfig, loadAmenidades, loadAvisos]);
+
+  const salvarSobre = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingConfig(true);
+    try {
+      await upsertCondominioConfig({
+        condominio_id: condominioId,
+        sobre_titulo: sobreTitulo.trim(),
+        sobre_descricao: sobreDescricao.trim(),
+      });
+      toast.success("Seção 'Sobre' atualizada.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao salvar.");
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const removerAmen = async (id: string) => {
+    try {
+      await removerAmenidade(id);
+      toast.success("Amenidade removida.");
+      await loadAmenidades();
+    } catch (e) { console.error(e); toast.error("Erro ao remover."); }
+  };
+
+  const toggleAviso = async (id: string, ativo: boolean) => {
+    try {
+      await toggleAvisoPublico(id, ativo);
+      await loadAvisos();
+    } catch (e) { console.error(e); toast.error("Erro ao atualizar aviso."); }
+  };
+
+  const removerAviso = async (id: string) => {
+    try {
+      await removerAvisoPublico(id);
+      toast.success("Aviso removido.");
+      await loadAvisos();
+    } catch (e) { console.error(e); toast.error("Erro ao remover."); }
+  };
+
+  return (
+    <section className="border-t border-border bg-background py-16">
+      <div className="mx-auto max-w-7xl space-y-12 px-6">
+        <div className="max-w-2xl">
+          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+            <Sparkles className="h-3.5 w-3.5" /> Configurações da landing page
+          </span>
+          <h2 className="mt-3 text-3xl font-medium md:text-4xl">Sobre o condomínio, amenidades e mural público</h2>
+          <p className="mt-4 text-muted-foreground">
+            Edite os textos e cards que aparecem na página pública do condomínio.
+          </p>
+        </div>
+
+        {/* Sobre o condomínio */}
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
+          <h3 className="font-display text-xl font-semibold">Sobre o condomínio</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Título e descrição exibidos na seção "Sobre" da landing.</p>
+          {configLoading ? (
+            <div className="mt-4"><LoadingBlock /></div>
+          ) : (
+            <form onSubmit={salvarSobre} className="mt-6 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sobre-titulo">Título</Label>
+                <Input id="sobre-titulo" value={sobreTitulo} onChange={(e) => setSobreTitulo(e.target.value)} placeholder="Ex: Um ambiente pensado para o seu bem-estar" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sobre-desc">Descrição</Label>
+                <Textarea id="sobre-desc" value={sobreDescricao} onChange={(e) => setSobreDescricao(e.target.value)} rows={4} placeholder="Descreva o condomínio…" />
+              </div>
+              <Button type="submit" disabled={savingConfig} className="rounded-full">
+                {savingConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Salvar
+              </Button>
+            </form>
+          )}
+        </div>
+
+        {/* Amenidades */}
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-display text-xl font-semibold">Amenidades</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Cards exibidos na seção "Sobre o condomínio".</p>
+            </div>
+            <Button onClick={() => setAmenidadeNew(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Nova amenidade
+            </Button>
+          </div>
+
+          <div className="mt-6">
+            {amenidadesLoading ? (
+              <LoadingBlock />
+            ) : amenidades.length === 0 ? (
+              <EmptyState>Nenhuma amenidade cadastrada.</EmptyState>
+            ) : (
+              <ul className="divide-y divide-border">
+                {amenidades.map((a) => (
+                  <li key={a.id} className="flex items-center gap-3 py-3">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-secondary text-primary">
+                      <AmenidadeIcon icone={a.icone} className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{a.nome}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        Ordem {a.ordem} · Ícone: {a.icone || "—"} · {a.descricao || "sem descrição"}
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setAmenidadeEdit(a)} aria-label="Editar">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => removerAmen(a.id)} aria-label="Remover">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* Mural público */}
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-display text-xl font-semibold">Mural público</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Avisos abertos ao público na landing page.</p>
+            </div>
+            <Button onClick={() => setAvisoNew(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Novo aviso
+            </Button>
+          </div>
+
+          <div className="mt-6">
+            {avisosLoading ? (
+              <LoadingBlock />
+            ) : avisos.length === 0 ? (
+              <EmptyState>Nenhum aviso cadastrado.</EmptyState>
+            ) : (
+              <ul className="divide-y divide-border">
+                {avisos.map((av) => (
+                  <li key={av.id} className="flex items-start gap-3 py-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{av.titulo}</p>
+                      <p className="mt-1 line-clamp-2 text-[12px] text-muted-foreground">{av.conteudo}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Switch checked={av.ativo} onCheckedChange={(v) => toggleAviso(av.id, v)} />
+                        <span>{av.ativo ? "Ativo" : "Inativo"}</span>
+                      </div>
+                      <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => removerAviso(av.id)} aria-label="Remover">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <AmenidadeDialog
+        open={amenidadeNew || !!amenidadeEdit}
+        onOpenChange={(v) => { if (!v) { setAmenidadeNew(false); setAmenidadeEdit(null); } }}
+        condominioId={condominioId}
+        amenidade={amenidadeEdit}
+        onSaved={loadAmenidades}
+      />
+      <AvisoPublicoDialog
+        open={avisoNew}
+        onOpenChange={setAvisoNew}
+        condominioId={condominioId}
+        onSaved={loadAvisos}
+      />
+    </section>
+  );
+}
+
+function AmenidadeDialog({
+  open, onOpenChange, condominioId, amenidade, onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  condominioId: string;
+  amenidade: AmenidadeRow | null;
+  onSaved: () => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [icone, setIcone] = useState("");
+  const [ordem, setOrdem] = useState<number>(0);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setNome(amenidade?.nome ?? "");
+      setDescricao(amenidade?.descricao ?? "");
+      setIcone(amenidade?.icone ?? "");
+      setOrdem(amenidade?.ordem ?? 0);
+    }
+  }, [open, amenidade]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim()) { toast.error("Informe o nome."); return; }
+    setSaving(true);
+    try {
+      const patch = {
+        nome: nome.trim(),
+        descricao: descricao.trim(),
+        icone: icone.trim().toLowerCase(),
+        ordem: Number.isFinite(ordem) ? ordem : 0,
+      };
+      if (amenidade) {
+        await atualizarAmenidade(amenidade.id, patch);
+        toast.success("Amenidade atualizada.");
+      } else {
+        await criarAmenidade({ condominio_id: condominioId, ...patch });
+        toast.success("Amenidade criada.");
+      }
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao salvar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{amenidade ? "Editar amenidade" : "Nova amenidade"}</DialogTitle>
+          <DialogDescription>
+            Ícone: nome de ícone lucide (ex: shield, waves, gamepad2, trees, dumbbell, wifi, coffee).
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="am-nome">Nome</Label>
+            <Input id="am-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="am-desc">Descrição</Label>
+            <Textarea id="am-desc" rows={3} value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="am-icone">Ícone</Label>
+              <Input id="am-icone" value={icone} onChange={(e) => setIcone(e.target.value)} placeholder="shield" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="am-ordem">Ordem</Label>
+              <Input id="am-ordem" type="number" value={ordem} onChange={(e) => setOrdem(Number(e.target.value))} />
+            </div>
+          </div>
+          <Button type="submit" disabled={saving} className="w-full rounded-full">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            Salvar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AvisoPublicoDialog({
+  open, onOpenChange, condominioId, onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  condominioId: string;
+  onSaved: () => void;
+}) {
+  const [titulo, setTitulo] = useState("");
+  const [conteudo, setConteudo] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (open) { setTitulo(""); setConteudo(""); } }, [open]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo.trim() || !conteudo.trim()) { toast.error("Preencha título e conteúdo."); return; }
+    setSaving(true);
+    try {
+      await criarAvisoPublico({
+        condominio_id: condominioId,
+        titulo: titulo.trim(),
+        conteudo: conteudo.trim(),
+      });
+      toast.success("Aviso publicado.");
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao publicar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Novo aviso público</DialogTitle>
+          <DialogDescription>Será exibido no mural público da landing.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="av-titulo">Título</Label>
+            <Input id="av-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="av-conteudo">Conteúdo</Label>
+            <Textarea id="av-conteudo" rows={5} value={conteudo} onChange={(e) => setConteudo(e.target.value)} />
+          </div>
+          <Button type="submit" disabled={saving} className="w-full rounded-full">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Publicar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
