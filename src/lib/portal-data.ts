@@ -581,3 +581,134 @@ export async function removerDocumento(id: string) {
   const { error } = await supabase.from("documentos").delete().eq("id", id);
   if (error) throw error;
 }
+
+// ---------- LANDING PAGE (condominio_config, amenidades, avisos_publicos) ----------
+
+export const LANDING_CONDOMINIO_ID = "a3dcd3da-c281-4bbc-8dad-f62d94353281";
+
+export type CondominioConfigRow = {
+  condominio_id: string;
+  sobre_titulo: string | null;
+  sobre_descricao: string | null;
+};
+
+export type AmenidadeRow = {
+  id: string;
+  condominio_id: string;
+  nome: string;
+  descricao: string | null;
+  icone: string | null;
+  ordem: number;
+};
+
+export type AvisoPublicoRow = {
+  id: string;
+  condominio_id: string;
+  titulo: string;
+  conteudo: string;
+  ativo: boolean;
+  created_at: string;
+};
+
+export async function fetchCondominioConfig(condominioId: string) {
+  const { data, error } = await supabase
+    .from("condominio_config")
+    .select("condominio_id, sobre_titulo, sobre_descricao")
+    .eq("condominio_id", condominioId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as CondominioConfigRow | null;
+}
+
+export async function upsertCondominioConfig(input: {
+  condominio_id: string;
+  sobre_titulo: string;
+  sobre_descricao: string;
+}) {
+  const { error } = await supabase
+    .from("condominio_config")
+    .upsert(
+      { ...input, updated_at: new Date().toISOString() },
+      { onConflict: "condominio_id" },
+    );
+  if (error) throw error;
+}
+
+export async function fetchAmenidades(condominioId: string) {
+  const { data, error } = await supabase
+    .from("amenidades")
+    .select("id, condominio_id, nome, descricao, icone, ordem")
+    .eq("condominio_id", condominioId)
+    .order("ordem", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as AmenidadeRow[];
+}
+
+export async function criarAmenidade(input: {
+  condominio_id: string;
+  nome: string;
+  descricao: string;
+  icone: string;
+  ordem: number;
+}) {
+  const { error } = await supabase.from("amenidades").insert(input);
+  if (error) throw error;
+}
+
+export async function atualizarAmenidade(
+  id: string,
+  patch: { nome: string; descricao: string; icone: string; ordem: number },
+) {
+  const { error } = await supabase.from("amenidades").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function removerAmenidade(id: string) {
+  const { error } = await supabase.from("amenidades").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function fetchAvisosPublicosAtivos(condominioId: string) {
+  const { data, error } = await supabase
+    .from("avisos_publicos")
+    .select("id, condominio_id, titulo, conteudo, ativo, created_at")
+    .eq("condominio_id", condominioId)
+    .eq("ativo", true)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as AvisoPublicoRow[];
+}
+
+export async function fetchAvisosPublicos(condominioId: string) {
+  const { data, error } = await supabase
+    .from("avisos_publicos")
+    .select("id, condominio_id, titulo, conteudo, ativo, created_at")
+    .eq("condominio_id", condominioId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as AvisoPublicoRow[];
+}
+
+export async function criarAvisoPublico(input: {
+  condominio_id: string;
+  titulo: string;
+  conteudo: string;
+}) {
+  const { error } = await supabase
+    .from("avisos_publicos")
+    .insert({ ...input, ativo: true });
+  if (error) throw error;
+}
+
+export async function toggleAvisoPublico(id: string, ativo: boolean) {
+  const { error } = await supabase
+    .from("avisos_publicos")
+    .update({ ativo })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function removerAvisoPublico(id: string) {
+  const { error } = await supabase.from("avisos_publicos").delete().eq("id", id);
+  if (error) throw error;
+}
