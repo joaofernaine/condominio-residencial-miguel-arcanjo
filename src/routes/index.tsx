@@ -88,11 +88,28 @@ import {
   MONTH_NAMES_PT,
   MONTH_NAMES_PT_SHORT,
   RESERVATION_STATUS_STYLES,
-  amenities,
-  publicNotices,
   CLASSIFIEDS,
 
 } from "@/lib/mocks";
+import { Switch } from "@/components/ui/switch";
+import {
+  Shield,
+  Waves,
+  Gamepad2,
+  Trees,
+  Dumbbell,
+  Car,
+  Utensils,
+  Flower2,
+  Sun,
+  Home,
+  Users,
+  Wifi,
+  ParkingCircle,
+  PartyPopper,
+  Baby,
+  Coffee,
+} from "lucide-react";
 import {
   type Profile,
   type PautaRow,
@@ -101,10 +118,14 @@ import {
   type HistoricoRow,
   type ObraRow,
   type ObraAtualizacaoRow,
+  type AmenidadeRow,
+  type AvisoPublicoRow,
+  type CondominioConfigRow,
   RESERVATION_SPACES,
   RESERVA_DB_TO_UI,
   HISTORICO_DB_TO_UI,
   HISTORICO_UI_TO_DB,
+  LANDING_CONDOMINIO_ID,
   fetchProfileByAuthUser,
   markFirstAccessComplete,
   fetchPautasAtivas,
@@ -145,7 +166,53 @@ import {
   type DocumentoRow,
   type DocumentoTipo,
   type OcupacaoRow,
+  fetchCondominioConfig,
+  upsertCondominioConfig,
+  fetchAmenidades,
+  criarAmenidade,
+  atualizarAmenidade,
+  removerAmenidade,
+  fetchAvisosPublicos,
+  fetchAvisosPublicosAtivos,
+  criarAvisoPublico,
+  toggleAvisoPublico,
+  removerAvisoPublico,
 } from "@/lib/portal-data";
+
+// Mapa de ícones (texto livre → componente lucide) para amenidades da landing
+const AMENIDADE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  shield: Shield,
+  shieldcheck: ShieldCheck,
+  waves: Waves,
+  gamepad2: Gamepad2,
+  gamepad: Gamepad2,
+  trees: Trees,
+  tree: Trees,
+  dumbbell: Dumbbell,
+  car: Car,
+  utensils: Utensils,
+  flower: Flower2,
+  flower2: Flower2,
+  sun: Sun,
+  home: Home,
+  users: Users,
+  wifi: Wifi,
+  parking: ParkingCircle,
+  parkingcircle: ParkingCircle,
+  party: PartyPopper,
+  partypopper: PartyPopper,
+  baby: Baby,
+  coffee: Coffee,
+  sparkles: Sparkles,
+  building: Building2,
+  building2: Building2,
+};
+
+function AmenidadeIcon({ icone, className }: { icone: string | null; className?: string }) {
+  const key = (icone ?? "").toLowerCase().trim();
+  const Icon = AMENIDADE_ICONS[key] ?? Sparkles;
+  return <Icon className={className} />;
+}
 
 
 
