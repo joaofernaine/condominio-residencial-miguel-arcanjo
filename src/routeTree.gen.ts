@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClassificadosIndexRouteImport } from './routes/classificados.index'
 import { Route as ClassificadosNovoRouteImport } from './routes/classificados.novo'
 import { Route as ClassificadosMeusRouteImport } from './routes/classificados.meus'
+import { Route as AdminClassificadosIndexRouteImport } from './routes/admin.classificados.index'
 import { Route as AdminClassificadosPendentesRouteImport } from './routes/admin.classificados.pendentes'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const ClassificadosMeusRoute = ClassificadosMeusRouteImport.update({
   path: '/classificados/meus',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminClassificadosIndexRoute = AdminClassificadosIndexRouteImport.update({
+  id: '/admin/classificados/',
+  path: '/admin/classificados/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminClassificadosPendentesRoute =
   AdminClassificadosPendentesRouteImport.update({
     id: '/admin/classificados/pendentes',
@@ -48,6 +54,7 @@ export interface FileRoutesByFullPath {
   '/classificados/novo': typeof ClassificadosNovoRoute
   '/classificados/': typeof ClassificadosIndexRoute
   '/admin/classificados/pendentes': typeof AdminClassificadosPendentesRoute
+  '/admin/classificados/': typeof AdminClassificadosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -55,6 +62,7 @@ export interface FileRoutesByTo {
   '/classificados/novo': typeof ClassificadosNovoRoute
   '/classificados': typeof ClassificadosIndexRoute
   '/admin/classificados/pendentes': typeof AdminClassificadosPendentesRoute
+  '/admin/classificados': typeof AdminClassificadosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -63,6 +71,7 @@ export interface FileRoutesById {
   '/classificados/novo': typeof ClassificadosNovoRoute
   '/classificados/': typeof ClassificadosIndexRoute
   '/admin/classificados/pendentes': typeof AdminClassificadosPendentesRoute
+  '/admin/classificados/': typeof AdminClassificadosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -72,6 +81,7 @@ export interface FileRouteTypes {
     | '/classificados/novo'
     | '/classificados/'
     | '/admin/classificados/pendentes'
+    | '/admin/classificados/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -79,6 +89,7 @@ export interface FileRouteTypes {
     | '/classificados/novo'
     | '/classificados'
     | '/admin/classificados/pendentes'
+    | '/admin/classificados'
   id:
     | '__root__'
     | '/'
@@ -86,6 +97,7 @@ export interface FileRouteTypes {
     | '/classificados/novo'
     | '/classificados/'
     | '/admin/classificados/pendentes'
+    | '/admin/classificados/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,6 +106,7 @@ export interface RootRouteChildren {
   ClassificadosNovoRoute: typeof ClassificadosNovoRoute
   ClassificadosIndexRoute: typeof ClassificadosIndexRoute
   AdminClassificadosPendentesRoute: typeof AdminClassificadosPendentesRoute
+  AdminClassificadosIndexRoute: typeof AdminClassificadosIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -126,6 +139,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClassificadosMeusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/classificados/': {
+      id: '/admin/classificados/'
+      path: '/admin/classificados'
+      fullPath: '/admin/classificados/'
+      preLoaderRoute: typeof AdminClassificadosIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/classificados/pendentes': {
       id: '/admin/classificados/pendentes'
       path: '/admin/classificados/pendentes'
@@ -142,6 +162,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClassificadosNovoRoute: ClassificadosNovoRoute,
   ClassificadosIndexRoute: ClassificadosIndexRoute,
   AdminClassificadosPendentesRoute: AdminClassificadosPendentesRoute,
+  AdminClassificadosIndexRoute: AdminClassificadosIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
