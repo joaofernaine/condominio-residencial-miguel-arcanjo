@@ -1624,6 +1624,8 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       </section>
 
       {/* Documentos admin */}
+      <ClassificadosAdminSection condominioId={profile.condominio_id} />
+
       <DocumentsAdminSection condominioId={profile.condominio_id} />
 
       <LandingConfigSection condominioId={profile.condominio_id} />
