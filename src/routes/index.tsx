@@ -88,9 +88,10 @@ import {
   MONTH_NAMES_PT,
   MONTH_NAMES_PT_SHORT,
   RESERVATION_STATUS_STYLES,
-  CLASSIFIEDS,
 
 } from "@/lib/mocks";
+import { ClassificadosResidentSection } from "@/components/classificados-resident-section";
+import { ClassificadosAdminSection } from "@/components/classificados-admin-section";
 import { Switch } from "@/components/ui/switch";
 import {
   Shield,
@@ -1063,36 +1064,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
         </div>
       </section>
 
-      {/* Classificados (mock vazio) */}
-      <section className="bg-background py-20">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-                <Store className="h-3.5 w-3.5" /> Marketplace interno
-              </span>
-              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Classificados dos moradores</h2>
-            </div>
-          </div>
-          <div className="mt-10">
-            {CLASSIFIEDS.length === 0 ? (
-              <EmptyState>Nenhum classificado publicado ainda.</EmptyState>
-            ) : (
-              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-                {CLASSIFIEDS.map((c) => (
-                  <article key={c.title} className="flex flex-col rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)] transition-all hover:-translate-y-1">
-                    <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[color:var(--sage)]/10 px-3 py-1 text-xs font-semibold text-[color:var(--sage)]">
-                      <Tag className="h-3 w-3" /> {c.tag}
-                    </span>
-                    <h3 className="mt-4 text-base font-semibold leading-snug">{c.title}</h3>
-                    <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{c.body}</p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
+      <ClassificadosResidentSection profile={profile} />
 
       {/* CTA canal */}
       <section className="relative overflow-hidden bg-primary py-20 text-primary-foreground">
@@ -1652,6 +1624,8 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       </section>
 
       {/* Documentos admin */}
+      <ClassificadosAdminSection condominioId={profile.condominio_id} />
+
       <DocumentsAdminSection condominioId={profile.condominio_id} />
 
       <LandingConfigSection condominioId={profile.condominio_id} />
