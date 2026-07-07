@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClassificadosIndexRouteImport } from './routes/classificados.index'
+import { Route as ClassificadosNovoRouteImport } from './routes/classificados.novo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,30 +23,39 @@ const ClassificadosIndexRoute = ClassificadosIndexRouteImport.update({
   path: '/classificados/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClassificadosNovoRoute = ClassificadosNovoRouteImport.update({
+  id: '/classificados/novo',
+  path: '/classificados/novo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/classificados/novo': typeof ClassificadosNovoRoute
   '/classificados/': typeof ClassificadosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/classificados/novo': typeof ClassificadosNovoRoute
   '/classificados': typeof ClassificadosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/classificados/novo': typeof ClassificadosNovoRoute
   '/classificados/': typeof ClassificadosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/classificados/'
+  fullPaths: '/' | '/classificados/novo' | '/classificados/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/classificados'
-  id: '__root__' | '/' | '/classificados/'
+  to: '/' | '/classificados/novo' | '/classificados'
+  id: '__root__' | '/' | '/classificados/novo' | '/classificados/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ClassificadosNovoRoute: typeof ClassificadosNovoRoute
   ClassificadosIndexRoute: typeof ClassificadosIndexRoute
 }
 
@@ -65,11 +75,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClassificadosIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/classificados/novo': {
+      id: '/classificados/novo'
+      path: '/classificados/novo'
+      fullPath: '/classificados/novo'
+      preLoaderRoute: typeof ClassificadosNovoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ClassificadosNovoRoute: ClassificadosNovoRoute,
   ClassificadosIndexRoute: ClassificadosIndexRoute,
 }
 export const routeTree = rootRouteImport

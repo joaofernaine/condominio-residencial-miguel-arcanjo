@@ -107,7 +107,12 @@ function NovoClassificadoPage() {
       for (const f of fotos) {
         try {
           const up = await uploadClassificadoFoto(created.id, f.file);
-          await inserirFoto({ classificado_id: created.id, ...up });
+          await inserirFoto({
+            classificado_id: created.id,
+            foto_url: up.url,
+            storage_path: up.storage_path,
+            file_name: up.file_name,
+          });
         } catch (err) {
           console.error(err);
           toast.error(`Falha ao enviar "${f.file.name}".`);
