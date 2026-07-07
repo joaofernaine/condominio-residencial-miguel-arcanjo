@@ -384,7 +384,12 @@ function ClassificadoFormDialog({
       }
       for (const nf of fotosNovas) {
         const up = await uploadClassificadoFoto(classificadoId, nf.file);
-        await inserirFoto({ classificado_id: classificadoId, ...up });
+        await inserirFoto({
+          classificado_id: classificadoId,
+          foto_url: up.url,
+          storage_path: up.storage_path,
+          file_name: up.file_name,
+        });
       }
       toast.success(editing ? "Anúncio atualizado — aguardando nova aprovação." : "Anúncio enviado para aprovação!");
       onOpenChange(false);
