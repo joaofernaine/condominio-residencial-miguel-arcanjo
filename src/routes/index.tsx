@@ -617,21 +617,25 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
   return (
     <>
       <header className="absolute top-0 z-30 w-full">
-        <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
-          <a href="#top" className="flex items-center gap-2 text-primary-foreground">
-            <Building2 className="h-6 w-6" />
-            <span className="font-display text-lg font-semibold tracking-tight">Condomínio Residencial Miguel Arcanjo</span>
+        <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-6">
+          <a href="#top" className="flex min-w-0 items-center gap-2 text-primary-foreground">
+            <Building2 className="h-6 w-6 shrink-0" />
+            <span className="font-display truncate text-sm font-semibold tracking-tight sm:text-lg">
+              <span className="sm:hidden">Cond. Miguel Arcanjo</span>
+              <span className="hidden sm:inline">Condomínio Residencial Miguel Arcanjo</span>
+            </span>
           </a>
           <div className="hidden items-center gap-8 text-sm text-primary-foreground/85 md:flex">
             <a href="#sobre" className="hover:text-primary-foreground">Sobre</a>
             <a href="#estrutura" className="hover:text-primary-foreground">Infraestrutura</a>
             <a href="#avisos" className="hover:text-primary-foreground">Avisos</a>
           </div>
-          <Button onClick={onOpenLogin} variant="secondary" size="sm" className="rounded-full">
-            <LogIn className="h-4 w-4" /> Portal do Morador
+          <Button onClick={onOpenLogin} variant="secondary" size="sm" className="shrink-0 rounded-full">
+            <LogIn className="h-4 w-4" /> <span className="hidden sm:inline">Portal do Morador</span><span className="sm:hidden">Entrar</span>
           </Button>
         </nav>
       </header>
+
 
       <section id="top" className="relative isolate min-h-[92vh] overflow-hidden">
         <img src={heroImage} alt="Fachada do condomínio ao entardecer" width={1920} height={1280} className="absolute inset-0 h-full w-full object-cover" />
