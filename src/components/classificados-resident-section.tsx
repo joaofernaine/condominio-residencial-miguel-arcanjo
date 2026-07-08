@@ -382,16 +382,29 @@ function ClassificadoFormDialog({
         });
         classificadoId = created.id;
       }
+      let fotosFalhas = 0;
       for (const nf of fotosNovas) {
-        const up = await uploadClassificadoFoto(classificadoId, nf.file);
-        await inserirFoto({
-          classificado_id: classificadoId,
-          foto_url: up.url,
-          storage_path: up.storage_path,
-          file_name: up.file_name,
-        });
+        try {
+          const up = await uploadClassificadoFoto(classificadoId, nf.file);
+          await inserirFoto({
+            classificado_id: classificadoId,
+            foto_url: up.url,
+            storage_path: up.storage_path,
+            file_name: up.file_name,
+          });
+        } catch (photoErr) {
+          console.error("Falha ao salvar foto:", nf.file.name, photoErr);
+          fotosFalhas += 1;
+        }
       }
       toast.success(editing ? "Anúncio atualizado — aguardando nova aprovação." : "Anúncio enviado para aprovação!");
+      if (fotosFalhas > 0) {
+        toast.warning(
+          fotosFalhas === 1
+            ? "1 foto não pôde ser enviada — o anúncio foi salvo sem ela."
+            : `${fotosFalhas} fotos não puderam ser enviadas — o anúncio foi salvo sem elas.`,
+        );
+      }
       onOpenChange(false);
       onSaved();
     } catch (e) {
