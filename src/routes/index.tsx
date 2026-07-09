@@ -92,6 +92,8 @@ import {
 } from "@/lib/mocks";
 import { ClassificadosResidentSection } from "@/components/classificados-resident-section";
 import { ClassificadosAdminSection } from "@/components/classificados-admin-section";
+import { VisitantesResidentSection } from "@/components/visitantes-resident-section";
+import { VisitantesAdminSection } from "@/components/visitantes-admin-section";
 import { Switch } from "@/components/ui/switch";
 import {
   Shield,
