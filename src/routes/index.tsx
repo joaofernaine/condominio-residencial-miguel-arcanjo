@@ -621,7 +621,7 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
           <a href="#top" className="flex min-w-0 items-center gap-2 text-primary-foreground">
             <Building2 className="h-6 w-6 shrink-0" />
             <span className="font-display truncate text-sm font-semibold tracking-tight sm:text-lg">
-              <span className="sm:hidden">Cond. Miguel Arcanjo</span>
+              <span className="sm:hidden">Cond. M. Arcanjo</span>
               <span className="hidden sm:inline">Condomínio Residencial Miguel Arcanjo</span>
             </span>
           </a>
@@ -871,7 +871,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
           <div className="flex min-w-0 items-center gap-2">
             <Building2 className="h-6 w-6 shrink-0 text-primary" />
             <span className="font-display truncate text-base font-semibold tracking-tight sm:text-lg">
-              <span className="sm:hidden">Cond. Miguel Arcanjo</span>
+              <span className="sm:hidden">Cond. M. Arcanjo</span>
               <span className="hidden sm:inline">Condomínio Residencial Miguel Arcanjo</span>
             </span>
             <span className="ml-3 hidden rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground sm:inline">
@@ -1414,7 +1414,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Building2 className="h-6 w-6 shrink-0 text-primary" />
             <span className="font-display truncate text-base font-semibold tracking-tight sm:text-lg">
-              <span className="sm:hidden">Cond. Miguel Arcanjo</span>
+              <span className="sm:hidden">Cond. M. Arcanjo</span>
               <span className="hidden sm:inline">Condomínio Residencial Miguel Arcanjo</span>
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--gold)]/20 px-2.5 py-0.5 text-xs font-semibold text-[color:var(--gold)]">
