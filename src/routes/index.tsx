@@ -1074,7 +1074,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
         </div>
       </section>
 
-      <ClassificadosResidentSection profile={profile} />
+      <VisitantesResidentSection profile={profile} />
 
       {/* CTA canal */}
       <section className="relative overflow-hidden bg-primary py-20 text-primary-foreground">
