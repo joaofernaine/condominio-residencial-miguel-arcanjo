@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CalendarDays, Car, Loader2, Plus, Trash2, User, UserCheck } from "lucide-react";
+import { CalendarDays, Car, Loader2, Plus, Trash2, User, UserCheck, Users } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 import type { Profile } from "@/lib/portal-data";
 
 export type VisitanteStatus = "pendente" | "aprovado" | "recusado";
+export type VisitanteTipo = "visita" | "airbnb";
 
 export type VisitanteRow = {
   id: string;
@@ -32,6 +33,8 @@ export type VisitanteRow = {
   status: VisitanteStatus;
   motivo_recusa: string | null;
   created_at: string;
+  tipo_visita: VisitanteTipo | null;
+  acompanhantes: number | null;
 };
 
 const STATUS_LABEL: Record<VisitanteStatus, string> = {
@@ -129,55 +132,72 @@ export function VisitantesResidentSection({ profile }: { profile: Profile }) {
             </div>
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2">
-              {items.map((v) => (
-                <li key={v.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 shrink-0 text-primary" />
-                        <p className="truncate font-medium">{v.nome_visitante}</p>
+              {items.map((v) => {
+                const isAirbnb = v.tipo_visita === "airbnb";
+                return (
+                  <li key={v.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <User className="h-4 w-4 shrink-0 text-primary" />
+                          <p className="truncate font-medium">{v.nome_visitante}</p>
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              isAirbnb
+                                ? "border-purple-200 bg-purple-100 text-purple-800"
+                                : "border-border bg-secondary text-secondary-foreground"
+                            }`}
+                          >
+                            {isAirbnb ? "Airbnb" : "Visita"}
+                          </span>
+                          {isAirbnb && (v.acompanhantes ?? 0) > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-800">
+                              <Users className="h-3 w-3" /> {v.acompanhantes} acompanhantes
+                            </span>
+                          )}
+                        </div>
+                        {v.cpf && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">CPF: {v.cpf}</p>
+                        )}
+                        {v.placa_veiculo && (
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                            <Car className="h-3 w-3" /> {v.placa_veiculo}
+                          </p>
+                        )}
+                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                          <CalendarDays className="h-3 w-3" />
+                          {fmtDate(v.data_entrada)} → {fmtDate(v.data_saida)}
+                        </p>
+                        {v.observacoes && (
+                          <p className="mt-2 text-xs text-muted-foreground">{v.observacoes}</p>
+                        )}
+                        {v.status === "recusado" && v.motivo_recusa && (
+                          <p className="mt-2 rounded-md bg-destructive/5 px-2.5 py-1.5 text-[11px] text-destructive">
+                            Motivo: {v.motivo_recusa}
+                          </p>
+                        )}
                       </div>
-                      {v.cpf && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">CPF: {v.cpf}</p>
-                      )}
-                      {v.placa_veiculo && (
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                          <Car className="h-3 w-3" /> {v.placa_veiculo}
-                        </p>
-                      )}
-                      <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                        <CalendarDays className="h-3 w-3" />
-                        {fmtDate(v.data_entrada)} → {fmtDate(v.data_saida)}
-                      </p>
-                      {v.observacoes && (
-                        <p className="mt-2 text-xs text-muted-foreground">{v.observacoes}</p>
-                      )}
-                      {v.status === "recusado" && v.motivo_recusa && (
-                        <p className="mt-2 rounded-md bg-destructive/5 px-2.5 py-1.5 text-[11px] text-destructive">
-                          Motivo: {v.motivo_recusa}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[v.status]}`}
-                      >
-                        {STATUS_LABEL[v.status]}
-                      </span>
-                      {(v.status === "pendente" || v.status === "recusado") && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleDelete(v.id)}
-                          aria-label="Excluir"
+                      <div className="flex flex-col items-end gap-2">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[v.status]}`}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                          {STATUS_LABEL[v.status]}
+                        </span>
+                        {(v.status === "pendente" || v.status === "recusado") && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDelete(v.id)}
+                            aria-label="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -204,39 +224,38 @@ function NewVisitanteDialog({
   profile: Profile;
   onCreated: () => void;
 }) {
+  const [tipo, setTipo] = useState<VisitanteTipo>("visita");
   const [nome, setNome] = useState("");
   const [cpf, setCpf] = useState("");
   const [placa, setPlaca] = useState("");
+  const [acompanhantes, setAcompanhantes] = useState<number>(0);
   const [dataEntrada, setDataEntrada] = useState("");
   const [dataSaida, setDataSaida] = useState("");
   const [obs, setObs] = useState("");
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    if (!open) {
-      setNome("");
-      setCpf("");
-      setPlaca("");
-      setDataEntrada("");
-      setDataSaida("");
-      setObs("");
-      setSuccess(false);
-    }
-  }, [open]);
-
   const resetForm = () => {
+    setTipo("visita");
     setNome("");
     setCpf("");
     setPlaca("");
+    setAcompanhantes(0);
     setDataEntrada("");
     setDataSaida("");
     setObs("");
   };
 
+  useEffect(() => {
+    if (!open) {
+      resetForm();
+      setSuccess(false);
+    }
+  }, [open]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome.trim()) return toast.error("Informe o nome do visitante.");
+    if (!nome.trim()) return toast.error("Informe o nome do responsável.");
     if (!dataEntrada || !dataSaida) return toast.error("Informe as datas de entrada e saída.");
     if (dataSaida < dataEntrada) return toast.error("Data de saída não pode ser anterior à entrada.");
     setBusy(true);
@@ -251,6 +270,8 @@ function NewVisitanteDialog({
         data_saida: dataSaida,
         observacoes: obs.trim() || null,
         status: "pendente",
+        tipo_visita: tipo,
+        acompanhantes: tipo === "airbnb" ? Math.max(0, Number(acompanhantes) || 0) : 0,
       });
       if (error) throw error;
       toast.success("Visitante cadastrado. Aguarde aprovação.");
@@ -300,13 +321,39 @@ function NewVisitanteDialog({
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-secondary/40 p-1">
+              <button
+                type="button"
+                onClick={() => setTipo("visita")}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                  tipo === "visita"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Visita
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipo("airbnb")}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                  tipo === "airbnb"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Airbnb/Temporada
+              </button>
+            </div>
             <div>
-              <Label htmlFor="v-nome">Nome do visitante *</Label>
+              <Label htmlFor="v-nome">
+                {tipo === "airbnb" ? "Nome do responsável *" : "Nome do visitante *"}
+              </Label>
               <Input id="v-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} required />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="v-cpf">CPF</Label>
+                <Label htmlFor="v-cpf">{tipo === "airbnb" ? "CPF do responsável" : "CPF"}</Label>
                 <Input
                   id="v-cpf"
                   value={cpf}
@@ -326,6 +373,18 @@ function NewVisitanteDialog({
                 />
               </div>
             </div>
+            {tipo === "airbnb" && (
+              <div>
+                <Label htmlFor="v-acomp">Quantas pessoas acompanham?</Label>
+                <Input
+                  id="v-acomp"
+                  type="number"
+                  min={0}
+                  value={acompanhantes}
+                  onChange={(e) => setAcompanhantes(Math.max(0, Number(e.target.value) || 0))}
+                />
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="v-de">Data de entrada *</Label>
