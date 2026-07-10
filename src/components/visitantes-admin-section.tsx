@@ -172,9 +172,23 @@ export function VisitantesAdminSection({ condominioId }: { condominioId: string 
                 <li key={v.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <User className="h-4 w-4 shrink-0 text-primary" />
                         <p className="truncate font-medium">{v.nome_visitante}</p>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                            v.tipo_visita === "airbnb"
+                              ? "border-purple-200 bg-purple-100 text-purple-800"
+                              : "border-border bg-secondary text-secondary-foreground"
+                          }`}
+                        >
+                          {v.tipo_visita === "airbnb" ? "Airbnb" : "Visita"}
+                        </span>
+                        {v.tipo_visita === "airbnb" && (v.acompanhantes ?? 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-800">
+                            <Users className="h-3 w-3" /> {v.acompanhantes} acompanhantes
+                          </span>
+                        )}
                       </div>
                       {v.cpf && (
                         <p className="mt-0.5 text-xs text-muted-foreground">CPF: {v.cpf}</p>
