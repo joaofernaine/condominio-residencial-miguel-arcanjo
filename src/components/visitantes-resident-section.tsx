@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -210,6 +211,7 @@ function NewVisitanteDialog({
   const [dataSaida, setDataSaida] = useState("");
   const [obs, setObs] = useState("");
   const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -219,8 +221,18 @@ function NewVisitanteDialog({
       setDataEntrada("");
       setDataSaida("");
       setObs("");
+      setSuccess(false);
     }
   }, [open]);
+
+  const resetForm = () => {
+    setNome("");
+    setCpf("");
+    setPlaca("");
+    setDataEntrada("");
+    setDataSaida("");
+    setObs("");
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -242,8 +254,8 @@ function NewVisitanteDialog({
       });
       if (error) throw error;
       toast.success("Visitante cadastrado. Aguarde aprovação.");
-      onOpenChange(false);
       onCreated();
+      setSuccess(true);
     } catch (e) {
       console.error(e);
       toast.error("Erro ao cadastrar visitante.");
@@ -257,75 +269,105 @@ function NewVisitanteDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Cadastrar visitante</DialogTitle>
+          <DialogDescription>
+            Cadastre cada visitante individualmente para controle de entrada.
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
-          <div>
-            <Label htmlFor="v-nome">Nome do visitante *</Label>
-            <Input id="v-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} required />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="v-cpf">CPF</Label>
-              <Input
-                id="v-cpf"
-                value={cpf}
-                onChange={(e) => setCpf(maskCpf(e.target.value))}
-                placeholder="000.000.000-00"
-                inputMode="numeric"
-              />
+        {success ? (
+          <div className="space-y-5 py-4">
+            <div className="rounded-xl bg-primary/10 p-4 text-sm text-primary">
+              Visitante cadastrado com sucesso. Aguarde aprovação.
             </div>
-            <div>
-              <Label htmlFor="v-placa">Placa do veículo</Label>
-              <Input
-                id="v-placa"
-                value={placa}
-                onChange={(e) => setPlaca(e.target.value.toUpperCase())}
-                placeholder="ABC1D23"
-                maxLength={10}
-              />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setSuccess(false);
+                }}
+              >
+                Cadastrar outro visitante
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onOpenChange(false);
+                  setSuccess(false);
+                }}
+              >
+                Concluir
+              </Button>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+        ) : (
+          <form onSubmit={submit} className="space-y-3">
             <div>
-              <Label htmlFor="v-de">Data de entrada *</Label>
-              <Input
-                id="v-de"
-                type="date"
-                value={dataEntrada}
-                onChange={(e) => setDataEntrada(e.target.value)}
-                required
-              />
+              <Label htmlFor="v-nome">Nome do visitante *</Label>
+              <Input id="v-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} required />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="v-cpf">CPF</Label>
+                <Input
+                  id="v-cpf"
+                  value={cpf}
+                  onChange={(e) => setCpf(maskCpf(e.target.value))}
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                />
+              </div>
+              <div>
+                <Label htmlFor="v-placa">Placa do veículo</Label>
+                <Input
+                  id="v-placa"
+                  value={placa}
+                  onChange={(e) => setPlaca(e.target.value.toUpperCase())}
+                  placeholder="ABC1D23"
+                  maxLength={10}
+                />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="v-de">Data de entrada *</Label>
+                <Input
+                  id="v-de"
+                  type="date"
+                  value={dataEntrada}
+                  onChange={(e) => setDataEntrada(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="v-ds">Data de saída *</Label>
+                <Input
+                  id="v-ds"
+                  type="date"
+                  value={dataSaida}
+                  onChange={(e) => setDataSaida(e.target.value)}
+                  required
+                />
+              </div>
             </div>
             <div>
-              <Label htmlFor="v-ds">Data de saída *</Label>
-              <Input
-                id="v-ds"
-                type="date"
-                value={dataSaida}
-                onChange={(e) => setDataSaida(e.target.value)}
-                required
+              <Label htmlFor="v-obs">Observações</Label>
+              <Textarea
+                id="v-obs"
+                value={obs}
+                onChange={(e) => setObs(e.target.value)}
+                placeholder="Ex.: Mudança, aluguel temporário..."
+                rows={3}
               />
             </div>
-          </div>
-          <div>
-            <Label htmlFor="v-obs">Observações</Label>
-            <Textarea
-              id="v-obs"
-              value={obs}
-              onChange={(e) => setObs(e.target.value)}
-              placeholder="Ex.: Mudança, aluguel temporário..."
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cadastrar"}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={busy}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cadastrar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
