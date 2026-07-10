@@ -2410,6 +2410,7 @@ function ReservationModule({
             const oc = ocupacaoByIso.get(cell.iso);
             const isBlocked = oc?.status === "bloqueado";
             const isReserved = oc?.status === "aprovada";
+            const blockedLabel = isBlocked ? (oc?.observacoes?.trim() || "Bloqueado") : "";
             const disabled = cell.past || isBlocked || isReserved;
             const baseClass = cell.past
               ? "cursor-not-allowed border-border bg-secondary/40 opacity-40"
@@ -2433,8 +2434,8 @@ function ReservationModule({
                   <span className="mt-0.5 text-[9px] font-medium text-[color:var(--sage)]">Livre</span>
                 )}
                 {isBlocked && (
-                  <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-tight">
-                    Manutenção
+                  <span className="mt-0.5 block max-w-[3.5rem] truncate text-[8px] font-semibold uppercase tracking-tight">
+                    {blockedLabel.length > 12 ? `${blockedLabel.slice(0, 12)}...` : blockedLabel}
                   </span>
                 )}
                 {isReserved && (
@@ -2442,13 +2443,13 @@ function ReservationModule({
                 )}
               </button>
             );
-            if (isBlocked && oc?.observacoes) {
+            if (isBlocked) {
               return (
                 <TooltipProvider key={cell.iso} delayDuration={100}>
                   <Tooltip>
                     <TooltipTrigger asChild>{button}</TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs text-xs">
-                      {oc.observacoes}
+                      {blockedLabel}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
