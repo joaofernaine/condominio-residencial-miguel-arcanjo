@@ -94,6 +94,8 @@ import { ClassificadosResidentSection } from "@/components/classificados-residen
 import { ClassificadosAdminSection } from "@/components/classificados-admin-section";
 import { VisitantesResidentSection } from "@/components/visitantes-resident-section";
 import { VisitantesAdminSection } from "@/components/visitantes-admin-section";
+import { ChamadosResidentSection } from "@/components/chamados-resident-section";
+import { ChamadosAdminSection } from "@/components/chamados-admin-section";
 import { Switch } from "@/components/ui/switch";
 import {
   Shield,
