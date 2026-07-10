@@ -1080,33 +1080,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
 
       <VisitantesResidentSection profile={profile} />
 
-      {/* CTA canal */}
-      <section className="relative overflow-hidden bg-primary py-20 text-primary-foreground">
-        <div aria-hidden className="absolute -right-32 -top-32 h-96 w-96 rounded-full" style={{ background: "radial-gradient(circle, color-mix(in oklab, var(--gold) 45%, transparent), transparent 70%)" }} />
-        <div className="relative mx-auto max-w-7xl px-6">
-          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--gold)]">
-            <Mail className="h-3.5 w-3.5" /> Canal do morador
-          </span>
-          <h2 className="mt-3 text-3xl font-medium md:text-4xl">Fale com a administração</h2>
-          <p className="mt-4 max-w-lg text-primary-foreground/80">
-            Solicitações de manutenção, sugestões e reclamações serão integradas em breve.
-          </p>
-          <div className="mt-10 grid gap-6 md:grid-cols-3 text-sm">
-            <div className="flex items-center gap-4">
-              <div className="grid h-10 w-10 place-items-center rounded-full bg-white/10"><Phone className="h-4 w-4" /></div>
-              <div><p className="font-medium">Portaria 24h</p><p className="text-primary-foreground/70">—</p></div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="grid h-10 w-10 place-items-center rounded-full bg-white/10"><Mail className="h-4 w-4" /></div>
-              <div><p className="font-medium">Síndica</p><p className="text-primary-foreground/70">—</p></div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="grid h-10 w-10 place-items-center rounded-full bg-white/10"><MapPin className="h-4 w-4" /></div>
-              <div><p className="font-medium">Administração</p><p className="text-primary-foreground/70">—</p></div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <ChamadosResidentSection profile={profile} />
 
       <footer className="border-t border-border bg-background py-8">
         <div className="mx-auto max-w-7xl px-6 text-center text-sm text-muted-foreground">
