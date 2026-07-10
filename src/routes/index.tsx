@@ -2434,8 +2434,8 @@ function ReservationModule({
                   <span className="mt-0.5 text-[9px] font-medium text-[color:var(--sage)]">Livre</span>
                 )}
                 {isBlocked && (
-                  <span className="mt-0.5 block max-w-[3.5rem] truncate text-[8px] font-semibold uppercase tracking-tight">
-                    {blockedLabel.length > 12 ? `${blockedLabel.slice(0, 12)}...` : blockedLabel}
+                  <span className="mt-0.5 line-clamp-2 block w-full px-0.5 text-[9px] font-semibold uppercase leading-tight tracking-tight break-words">
+                    {blockedLabel}
                   </span>
                 )}
                 {isReserved && (
