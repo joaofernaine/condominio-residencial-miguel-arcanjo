@@ -1620,6 +1620,8 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
 
       <VisitantesAdminSection condominioId={profile.condominio_id} />
 
+      <ChamadosAdminSection condominioId={profile.condominio_id} />
+
       <DocumentsAdminSection condominioId={profile.condominio_id} />
 
       <LandingConfigSection condominioId={profile.condominio_id} />
