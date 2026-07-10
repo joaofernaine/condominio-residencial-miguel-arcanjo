@@ -275,7 +275,7 @@ function NewVisitanteDialog({
         </DialogHeader>
         {success ? (
           <div className="space-y-5 py-4">
-            <div className="rounded-xl bg-green-50 p-4 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-200">
+            <div className="rounded-xl bg-primary/10 p-4 text-sm text-primary">
               Visitante cadastrado com sucesso. Aguarde aprovação.
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
