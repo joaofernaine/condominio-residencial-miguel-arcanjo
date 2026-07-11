@@ -590,6 +590,9 @@ export type CondominioConfigRow = {
   condominio_id: string;
   sobre_titulo: string | null;
   sobre_descricao: string | null;
+  telefone_portaria: string | null;
+  email_sindica: string | null;
+  horario_atendimento: string | null;
 };
 
 export type AmenidadeRow = {
@@ -613,7 +616,7 @@ export type AvisoPublicoRow = {
 export async function fetchCondominioConfig(condominioId: string) {
   const { data, error } = await supabase
     .from("condominio_config")
-    .select("condominio_id, sobre_titulo, sobre_descricao")
+    .select("condominio_id, sobre_titulo, sobre_descricao, telefone_portaria, email_sindica, horario_atendimento")
     .eq("condominio_id", condominioId)
     .maybeSingle();
   if (error) throw error;
