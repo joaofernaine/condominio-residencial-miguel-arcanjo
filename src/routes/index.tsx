@@ -96,6 +96,8 @@ import { VisitantesResidentSection } from "@/components/visitantes-resident-sect
 import { VisitantesAdminSection } from "@/components/visitantes-admin-section";
 import { ChamadosResidentSection } from "@/components/chamados-resident-section";
 import { ChamadosAdminSection } from "@/components/chamados-admin-section";
+import { MensagensExternasAdminSection } from "@/components/mensagens-externas-admin-section";
+import { AdminPendenciasBadge } from "@/components/admin-pendencias-badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Shield,
