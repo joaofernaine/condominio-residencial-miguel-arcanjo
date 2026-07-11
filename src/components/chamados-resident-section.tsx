@@ -243,7 +243,9 @@ function NewChamadoDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Abrir chamado</DialogTitle>
-          <DialogDescription>Envie sua solicitação à administração.</DialogDescription>
+          <DialogDescription>
+            Chamado enviado pela unidade <span className="font-semibold">{profile.unidade}</span>
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div>
@@ -265,7 +267,7 @@ function NewChamadoDialog({
             </Select>
           </div>
           <div>
-            <Label htmlFor="c-desc">Descrição *</Label>
+            <Label htmlFor="c-desc">Mensagem *</Label>
             <Textarea
               id="c-desc"
               value={descricao}
