@@ -739,6 +739,8 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
         </div>
       </section>
 
+      <PublicContactSection condominioId={LANDING_CONDOMINIO_ID} config={config} />
+
       <footer className="border-t border-border bg-background py-10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-sm text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">
@@ -749,6 +751,128 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
         </div>
       </footer>
     </>
+  );
+}
+
+function PublicContactSection({
+  condominioId,
+  config,
+}: {
+  condominioId: string;
+  config: CondominioConfigRow | null;
+}) {
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [mensagem, setMensagem] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim()) return toast.error("Informe seu nome.");
+    if (!mensagem.trim()) return toast.error("Informe a mensagem.");
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("contatos_publicos").insert({
+        condominio_id: condominioId,
+        nome: nome.trim(),
+        email: email.trim() || null,
+        telefone: telefone.trim() || null,
+        mensagem: mensagem.trim(),
+      });
+      if (error) throw error;
+      setSent(true);
+      setNome(""); setEmail(""); setTelefone(""); setMensagem("");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao enviar mensagem.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const telefonePortaria = config?.telefone_portaria?.trim() || "—";
+  const emailSindica = config?.email_sindica?.trim() || "—";
+  const horario = config?.horario_atendimento?.trim() || "—";
+
+  return (
+    <section id="contato" className="border-t border-border bg-background py-24">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="max-w-2xl">
+          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+            <Mail className="h-3.5 w-3.5" /> Canal do morador
+          </span>
+          <h2 className="mt-3 text-4xl font-medium md:text-5xl">Fale com a administração</h2>
+          <p className="mt-4 text-muted-foreground">
+            Envie uma mensagem ou entre em contato pelos canais oficiais.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-8 lg:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-secondary text-primary">
+                <Phone className="h-4 w-4" />
+              </div>
+              <h3 className="mt-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Portaria 24h</h3>
+              <p className="mt-1 text-lg font-semibold">{telefonePortaria}</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-secondary text-primary">
+                <Mail className="h-4 w-4" />
+              </div>
+              <h3 className="mt-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Síndica</h3>
+              <p className="mt-1 break-words text-lg font-semibold">{emailSindica}</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-secondary text-primary">
+                <Clock className="h-4 w-4" />
+              </div>
+              <h3 className="mt-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Horário de resposta</h3>
+              <p className="mt-1 whitespace-pre-line text-lg font-semibold">{horario}</p>
+            </div>
+          </div>
+
+          <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-6">
+            {sent && (
+              <div className="rounded-xl bg-primary/10 p-3 text-sm text-primary">
+                Mensagem enviada! Entraremos em contato em breve.
+              </div>
+            )}
+            <div>
+              <Label htmlFor="pc-nome">Nome *</Label>
+              <Input id="pc-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} required />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="pc-email">E-mail</Label>
+                <Input id="pc-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} />
+              </div>
+              <div>
+                <Label htmlFor="pc-tel">Telefone</Label>
+                <Input id="pc-tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} maxLength={40} />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="pc-msg">Mensagem *</Label>
+              <Textarea
+                id="pc-msg"
+                value={mensagem}
+                onChange={(e) => setMensagem(e.target.value.slice(0, 1000))}
+                rows={5}
+                required
+                maxLength={1000}
+              />
+              <p className="mt-1 text-right text-xs text-muted-foreground">{mensagem.length}/1000</p>
+            </div>
+            <Button type="submit" disabled={busy} className="w-full">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-4 w-4" /> Enviar mensagem</>}
+            </Button>
+          </form>
+        </div>
+      </div>
+    </section>
   );
 }
 
