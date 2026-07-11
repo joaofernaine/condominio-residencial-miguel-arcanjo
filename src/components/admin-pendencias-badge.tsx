@@ -2,16 +2,16 @@ import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-async function countPendencias(condominioId: string) {
-  const queries = [
+async function countPendencias(condominioId: string): Promise<number> {
+  const runs = [
     supabase.from("contatos_publicos").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("lido", false),
     supabase.from("chamados").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "aberto"),
     supabase.from("reservas").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "pendente"),
     supabase.from("visitantes").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "pendente"),
     supabase.from("classificados").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "pendente"),
-  ];
-  const results = await Promise.all(queries.map((q) => q.then((r) => r.count ?? 0).catch(() => 0)));
-  return results.reduce((a, b) => a + b, 0);
+  ].map((p) => Promise.resolve(p).then((r) => r.count ?? 0).catch(() => 0));
+  const counts = await Promise.all(runs);
+  return counts.reduce((a: number, b: number) => a + b, 0);
 }
 
 export function AdminPendenciasBadge({ condominioId }: { condominioId: string }) {
