@@ -1405,10 +1405,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <div className="hidden items-center gap-2 text-sm sm:flex">
-              <div className="grid h-8 w-8 place-items-center rounded-full bg-[color:var(--gold)]/20 text-[color:var(--gold)]">
-                <ShieldCheck className="h-4 w-4" />
-              </div>
+              <AdminPendenciasBadge condominioId={profile.condominio_id} />
               <span className="font-medium capitalize">{profile.nome_completo}</span>
+            </div>
+            <div className="flex sm:hidden">
+              <AdminPendenciasBadge condominioId={profile.condominio_id} />
             </div>
             {adminAgenciaToggle}
             <Button onClick={onLogout} variant="outline" size="sm" className="rounded-full">
@@ -1623,6 +1624,8 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       <VisitantesAdminSection condominioId={profile.condominio_id} />
 
       <ChamadosAdminSection condominioId={profile.condominio_id} />
+
+      <MensagensExternasAdminSection condominioId={profile.condominio_id} />
 
       <DocumentsAdminSection condominioId={profile.condominio_id} />
 
