@@ -1,4 +1,4 @@
 project_id = "kccgazitxagxcbsuuiwn"
 
 [functions.criar-morador]
-verify_jwt = false
+verify_jwt = true

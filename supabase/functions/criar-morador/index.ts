@@ -26,6 +26,11 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return json({ error: "Não autenticado." }, 401);
+    }
+
     const { email, nome_completo, bloco, apartamento, condominio_id } =
       await req.json();
 
@@ -34,7 +39,36 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Cliente com o token do chamador: respeita RLS, então só enxerga o
+    // próprio profile (profiles_select_proprio).
+    const caller = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: authData, error: authErr } = await caller.auth.getUser();
+    if (authErr || !authData?.user) {
+      return json({ error: "Não autenticado." }, 401);
+    }
+
+    const { data: callerProfile, error: profileErr } = await caller
+      .from("profiles")
+      .select("role, condominio_id")
+      .eq("auth_user_id", authData.user.id)
+      .maybeSingle();
+
+    if (
+      profileErr ||
+      !callerProfile ||
+      !["sindica", "admin_agencia"].includes(callerProfile.role) ||
+      callerProfile.condominio_id !== condominio_id
+    ) {
+      return json({ error: "Sem permissão para esta operação." }, 403);
+    }
+
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
