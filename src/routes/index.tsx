@@ -44,6 +44,7 @@ import {
   XCircle,
 } from "lucide-react";
 import heroImage from "@/assets/condo-hero.jpg";
+import sobreImage from "@/assets/condo-sobre.jpg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -90,6 +91,8 @@ import {
   RESERVATION_STATUS_STYLES,
 
 } from "@/lib/mocks";
+import { Reveal } from "@/components/reveal";
+import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { ClassificadosResidentSection } from "@/components/classificados-resident-section";
 import { ClassificadosAdminSection } from "@/components/classificados-admin-section";
 import { VisitantesResidentSection } from "@/components/visitantes-resident-section";
@@ -221,7 +224,22 @@ function AmenidadeIcon({ icone, className }: { icone: string | null; className?:
   return <Icon className={className} />;
 }
 
-
+function AmenidadeCard({ amenidade, delay }: { amenidade: AmenidadeRow; delay: number }) {
+  return (
+    <Reveal
+      delay={delay}
+      className="amenidade-elegante group rounded-2xl border border-border border-t-[3px] border-t-[color:var(--wood)] bg-card p-6 hover:border-[color:var(--sage)]"
+    >
+      <div className="amenidade-icon-tile grid h-12 w-12 place-items-center rounded-xl bg-secondary text-primary group-hover:bg-primary group-hover:text-primary-foreground">
+        <AmenidadeIcon icone={amenidade.icone} className="h-5 w-5" />
+      </div>
+      <h3 className="mt-5 text-lg font-semibold">{amenidade.nome}</h3>
+      {amenidade.descricao && (
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{amenidade.descricao}</p>
+      )}
+    </Reveal>
+  );
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -620,6 +638,20 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
   const sobreTitulo = config?.sobre_titulo?.trim() || "Um ambiente pensado para o seu bem-estar";
   const sobreDescricao = config?.sobre_descricao?.trim() || "";
 
+  const activeSection = useScrollSpy(["sobre", "estrutura", "avisos"]);
+
+  const handleNavClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    e.preventDefault();
+    const target = document.getElementById(id);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    target.classList.remove("section-flash");
+    void target.offsetWidth; // reinicia a animação mesmo se já tiver rodado
+    target.classList.add("section-flash");
+    window.setTimeout(() => target.classList.remove("section-flash"), 1200);
+    window.history.replaceState(null, "", `#${id}`);
+  }, []);
+
   return (
     <>
       <header className="absolute top-0 z-30 w-full">
@@ -632,9 +664,9 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
             </span>
           </a>
           <div className="hidden items-center gap-8 text-sm text-primary-foreground/85 md:flex">
-            <a href="#sobre" className="hover:text-primary-foreground">Sobre</a>
-            <a href="#estrutura" className="hover:text-primary-foreground">Infraestrutura</a>
-            <a href="#avisos" className="hover:text-primary-foreground">Avisos</a>
+            <a href="#sobre" onClick={(e) => handleNavClick(e, "sobre")} data-active={activeSection === "sobre"} className="nav-underline hover:text-primary-foreground">Sobre</a>
+            <a href="#estrutura" onClick={(e) => handleNavClick(e, "estrutura")} data-active={activeSection === "estrutura"} className="nav-underline hover:text-primary-foreground">Infraestrutura</a>
+            <a href="#avisos" onClick={(e) => handleNavClick(e, "avisos")} data-active={activeSection === "avisos"} className="nav-underline hover:text-primary-foreground">Avisos</a>
           </div>
           <Button onClick={onOpenLogin} variant="secondary" size="sm" className="shrink-0 rounded-full">
             <LogIn className="h-4 w-4" /> <span className="hidden sm:inline">Portal do Morador</span><span className="sm:hidden">Entrar</span>
@@ -644,16 +676,21 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
 
 
       <section id="top" className="relative isolate min-h-[92vh] overflow-hidden">
-        <img src={heroImage} alt="Fachada do condomínio ao entardecer" width={1920} height={1280} className="absolute inset-0 h-full w-full object-cover" />
+        <img src={heroImage} alt="Fachada do condomínio ao entardecer" width={1920} height={1280} className="hero-img-live absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0" style={{ background: "var(--gradient-hero)" }} aria-hidden />
         <div className="relative mx-auto flex min-h-[92vh] max-w-7xl flex-col justify-end px-6 pb-20 pt-40 text-primary-foreground">
-          <div className="max-w-3xl">
+          <div className="hero-cascade max-w-3xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-medium uppercase tracking-widest backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" /> Um lugar para chamar de lar
             </span>
             <h1 className="mt-6 font-display text-5xl font-medium leading-[1.05] sm:text-6xl md:text-7xl">
               Bem-vindo ao<br />
-              <span className="italic text-[color:var(--gold)]">Portal Condomínio Residencial Miguel Arcanjo</span>
+              <span
+                className="script-shimmer text-6xl sm:text-7xl md:text-8xl leading-[1.1]"
+                style={{ fontFamily: "var(--font-script)" }}
+              >
+                Miguel Arcanjo
+              </span>
             </h1>
             <p className="mt-6 max-w-xl text-lg text-primary-foreground/85">
               Conforto, segurança e convivência em harmonia com a natureza.
@@ -663,7 +700,7 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
                 <LogIn className="h-4 w-4" /> Entrar no Portal do Morador
               </Button>
               <Button asChild size="lg" variant="outline" className="rounded-full border-white/30 bg-white/5 text-primary-foreground hover:bg-white/15 hover:text-primary-foreground">
-                <a href="#estrutura">Conhecer o condomínio</a>
+                <a href="#estrutura" onClick={(e) => handleNavClick(e, "estrutura")}>Conhecer o condomínio</a>
               </Button>
             </div>
           </div>
@@ -672,30 +709,34 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
 
       <section id="sobre" className="border-b border-border bg-background py-24">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-              <Sparkles className="h-3.5 w-3.5" /> Sobre o condomínio
-            </span>
-            <h2 className="mt-3 text-4xl font-medium md:text-5xl">{sobreTitulo}</h2>
-            {sobreDescricao && (
-              <p className="mt-4 text-lg leading-relaxed text-muted-foreground whitespace-pre-line">{sobreDescricao}</p>
-            )}
+          <div className="grid items-center gap-12 lg:grid-cols-2">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Sparkles className="h-3.5 w-3.5" /> Sobre o condomínio
+              </span>
+              <h2 className="mt-3 text-4xl font-medium md:text-5xl">{sobreTitulo}</h2>
+              {sobreDescricao && (
+                <p className="mt-4 text-lg leading-relaxed text-muted-foreground whitespace-pre-line">{sobreDescricao}</p>
+              )}
+            </div>
+            <div className="overflow-hidden rounded-2xl border-[3px] border-[color:var(--wood)] shadow-[var(--shadow-soft)]">
+              <img
+                src={sobreImage}
+                alt="Área comum do Condomínio Residencial Miguel Arcanjo"
+                width={1400}
+                height={1050}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            </div>
           </div>
           <div id="estrutura" className="mt-14">
             {amenidades.length === 0 ? (
               <EmptyState>Nenhuma comodidade cadastrada ainda.</EmptyState>
             ) : (
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                {amenidades.map((a) => (
-                  <div key={a.id} className="group rounded-2xl border border-border bg-card p-6 transition-all hover:-translate-y-1 hover:border-[color:var(--sage)] hover:shadow-[var(--shadow-soft)]">
-                    <div className="grid h-12 w-12 place-items-center rounded-xl bg-secondary text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                      <AmenidadeIcon icone={a.icone} className="h-5 w-5" />
-                    </div>
-                    <h3 className="mt-5 text-lg font-semibold">{a.nome}</h3>
-                    {a.descricao && (
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{a.descricao}</p>
-                    )}
-                  </div>
+                {amenidades.map((a, i) => (
+                  <AmenidadeCard key={a.id} amenidade={a} delay={(i % 4) * 80} />
                 ))}
               </div>
             )}
@@ -722,10 +763,10 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
             ) : (
               <div className="grid gap-6 md:grid-cols-3">
                 {avisos.map((n) => (
-                  <article key={n.id} className="group flex flex-col rounded-2xl border border-border bg-card p-7 transition-all hover:-translate-y-1 hover:shadow-[var(--shadow-soft)]">
+                  <article key={n.id} className="group flex flex-col rounded-2xl border border-border border-l-4 border-l-[color:var(--wood)] bg-card p-7 transition-all hover:-translate-y-1 hover:shadow-[var(--shadow-soft)]">
                     <div className="flex items-center justify-between">
-                      <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">Aviso</span>
-                      <time className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">Aviso</span>
+                      <time className="text-xs font-medium uppercase tracking-wider text-[color:var(--sage)]">
                         {new Date(n.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
                       </time>
                     </div>
@@ -741,7 +782,39 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
 
       <PublicContactSection condominioId={LANDING_CONDOMINIO_ID} config={config} />
 
-      <footer className="border-t border-border bg-background py-10">
+      <section id="localizacao" className="bg-background py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <MapPin className="h-3.5 w-3.5" /> Como chegar
+              </span>
+              <h2 className="mt-3 font-display text-4xl font-medium md:text-5xl">Onde estamos</h2>
+              <p className="mt-4 max-w-xl text-muted-foreground">
+                Condomínio Residencial Miguel Arcanjo — Ubatuba/SP.
+              </p>
+            </div>
+            <Button asChild variant="outline" className="rounded-full">
+              <a href="https://maps.app.goo.gl/ERAMfp31RTdp1Yh17" target="_blank" rel="noopener noreferrer">
+                <MapPin className="h-4 w-4" /> Abrir no Google Maps
+              </a>
+            </Button>
+          </div>
+
+          <div className="mt-10 overflow-hidden rounded-2xl border-[3px] border-[color:var(--wood)] shadow-[var(--shadow-soft)]">
+            <iframe
+              title="Localização do Condomínio Residencial Miguel Arcanjo"
+              src="https://www.google.com/maps?q=Condom%C3%ADnio+Miguel+Arcanjo&ftid=0x94cd53db0689b531:0xf4f4ebec6ad260ae&z=17&hl=pt-BR&output=embed"
+              className="h-[420px] w-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t-[3px] border-t-[color:var(--wood)] bg-background py-10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-sm text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
@@ -1024,7 +1097,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
 
 
       <section className="border-b border-border bg-secondary/30">
-        <div className="mx-auto max-w-7xl px-6 py-14">
+        <Reveal className="mx-auto max-w-7xl px-6 py-14">
           <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
             <Sparkles className="h-3.5 w-3.5" /> Área restrita
           </span>
@@ -1035,13 +1108,13 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
             Aqui você acompanha a saúde financeira do condomínio, participa de votações,
             acompanha obras e abre chamados diretamente com a administração.
           </p>
-        </div>
+        </Reveal>
       </section>
 
       {/* Votações */}
       <section className="bg-background py-20">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="max-w-2xl">
+          <Reveal className="max-w-2xl">
             <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
               <Vote className="h-3.5 w-3.5" /> Enquetes ativas
             </span>
@@ -1049,7 +1122,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
             <p className="mt-4 text-muted-foreground">
               Sua opinião conta. Cada morador pode votar apenas uma vez por enquete.
             </p>
-          </div>
+          </Reveal>
 
           <div className="mt-10">
             {pautasLoading ? (
@@ -1058,8 +1131,10 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               <EmptyState>Nenhuma enquete aberta no momento.</EmptyState>
             ) : (
               <div className="grid gap-6 md:grid-cols-2">
-                {pautas.map((p) => (
-                  <PollCard key={p.id} pauta={p} hasVoted={votedIds.has(p.id)} onVote={handleVote} />
+                {pautas.map((p, i) => (
+                  <Reveal key={p.id} delay={(i % 2) * 100}>
+                    <PollCard pauta={p} hasVoted={votedIds.has(p.id)} onVote={handleVote} />
+                  </Reveal>
                 ))}
               </div>
             )}
@@ -1071,7 +1146,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
       <section className="bg-secondary/40 py-20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="grid gap-12 lg:grid-cols-[1fr_2fr]">
-            <div>
+            <Reveal>
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
                 <FileText className="h-3.5 w-3.5" /> Transparência financeira
               </span>
@@ -1079,9 +1154,9 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               <p className="mt-4 text-muted-foreground">
                 Situação de pagamento da sua unidade ({profile.unidade || "—"}) mês a mês.
               </p>
-            </div>
+            </Reveal>
 
-            <div>
+            <Reveal delay={100}>
               {historicoLoading ? (
                 <LoadingBlock label="Carregando histórico…" />
               ) : (
@@ -1090,7 +1165,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               <div className="mt-8">
                 <DocumentsArchive condominioId={profile.condominio_id} />
               </div>
-            </div>
+            </Reveal>
 
           </div>
         </div>
@@ -1099,7 +1174,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
       {/* Obras */}
       <section className="bg-background py-20">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="max-w-2xl">
+          <Reveal className="max-w-2xl">
             <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
               <Hammer className="h-3.5 w-3.5" /> Obras & Reformas
             </span>
@@ -1107,12 +1182,14 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
             <p className="mt-4 text-muted-foreground">
               O que já entregamos, o que está em execução e o que vem a seguir.
             </p>
-          </div>
+          </Reveal>
 
           {obrasLoading ? (
             <div className="mt-10"><LoadingBlock label="Carregando obras…" /></div>
           ) : (
-            <ObrasTabs obras={obras} />
+            <Reveal delay={100}>
+              <ObrasTabs obras={obras} />
+            </Reveal>
           )}
         </div>
       </section>
@@ -1120,7 +1197,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
       {/* Reservas */}
       <section className="bg-secondary/40 py-20">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="flex flex-wrap items-end justify-between gap-6">
+          <Reveal className="flex flex-wrap items-end justify-between gap-6">
             <div className="max-w-2xl">
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
                 <CalendarIcon className="h-3.5 w-3.5" /> Sistema de reservas
@@ -1130,7 +1207,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                 Escolha um espaço e uma data. A confirmação chega em até 24h.
               </p>
             </div>
-          </div>
+          </Reveal>
 
           <ReservationModule onRequest={handleRequestReservation} ocupacoes={ocupacoes} />
 
@@ -1155,11 +1232,11 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               </div>
             ) : (
               <ul className="mt-6 grid gap-3 md:grid-cols-2">
-                {reservas.filter((r) => r.status !== "bloqueado").map((r) => {
+                {reservas.filter((r) => r.status !== "bloqueado").map((r, i) => {
                   const uiStatus = RESERVA_DB_TO_UI[r.status as Exclude<typeof r.status, "bloqueado">];
                   const spaceName = RESERVATION_SPACES.find((s) => s.id === r.espaco)?.name ?? r.espaco;
                   return (
-                    <li key={r.id} className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+                    <Reveal key={r.id} as="li" delay={(i % 4) * 70} className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
                       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-secondary text-primary">
                         <CalendarIcon className="h-5 w-5" />
                       </div>
@@ -1186,7 +1263,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                           </p>
                         )}
                       </div>
-                    </li>
+                    </Reveal>
                   );
                 })}
               </ul>

@@ -33,35 +33,48 @@
   --color-gold: var(--gold);
   --font-display: "Fraunces", Georgia, serif;
   --font-sans: "Inter", system-ui, sans-serif;
+  --font-script: "Pinyon Script", cursive;
   --shadow-elegant: 0 20px 50px -20px color-mix(in oklab, var(--primary) 35%, transparent);
   --shadow-soft: 0 4px 20px -8px color-mix(in oklab, var(--primary) 20%, transparent);
-  --gradient-hero: linear-gradient(135deg, oklch(0.22 0.05 240 / 0.85), oklch(0.15 0.04 230 / 0.6));
+  --gradient-hero:
+    linear-gradient(120deg, color-mix(in srgb, var(--cobalt-deep) 92%, transparent) 15%, color-mix(in srgb, var(--cobalt-mosaic) 55%, transparent) 100%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 27px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 27px);
 }
 
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.99 0.003 240);
-  --foreground: oklch(0.16 0.03 245);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.03 245);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.03 245);
-  --primary: oklch(0.22 0.07 250);
-  --primary-foreground: oklch(0.99 0.003 240);
-  --secondary: oklch(0.96 0.008 240);
-  --secondary-foreground: oklch(0.22 0.07 250);
-  --muted: oklch(0.96 0.006 240);
-  --muted-foreground: oklch(0.48 0.02 245);
-  --accent: oklch(0.93 0.02 240);
-  --accent-foreground: oklch(0.22 0.07 250);
+
+  /* Paleta Miguel Arcanjo */
+  --cobalt-deep: #1B3A6B;
+  --cobalt-mosaic: #2E5BA3;
+  --marble: #F7F4EE;
+  --wood: #B87A3E;
+  --turquoise: #23B5B0;
+  --ink: #14213D;
+
+  --background: var(--marble);
+  --foreground: var(--ink);
+  --card: #FFFFFF;
+  --card-foreground: var(--ink);
+  --popover: #FFFFFF;
+  --popover-foreground: var(--ink);
+  --primary: var(--cobalt-deep);
+  --primary-foreground: var(--marble);
+  --secondary: color-mix(in srgb, var(--cobalt-mosaic) 10%, var(--marble));
+  --secondary-foreground: var(--cobalt-deep);
+  --muted: color-mix(in srgb, var(--ink) 6%, var(--marble));
+  --muted-foreground: color-mix(in srgb, var(--ink) 62%, transparent);
+  --accent: color-mix(in srgb, var(--cobalt-mosaic) 16%, var(--marble));
+  --accent-foreground: var(--cobalt-deep);
   --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(0.99 0.003 240);
-  --border: oklch(0.91 0.01 240);
-  --input: oklch(0.91 0.01 240);
-  --ring: oklch(0.45 0.12 245);
-  --sage: oklch(0.5 0.13 235);
-  --sage-foreground: oklch(0.99 0.003 240);
-  --gold: oklch(0.72 0.13 75);
+  --destructive-foreground: var(--marble);
+  --border: color-mix(in srgb, var(--ink) 10%, transparent);
+  --input: color-mix(in srgb, var(--ink) 10%, transparent);
+  --ring: var(--cobalt-mosaic);
+  --sage: var(--turquoise);
+  --sage-foreground: #06231f;
+  --gold: var(--wood);
 }
 
 @layer base {
@@ -77,9 +90,168 @@
   }
   html {
     overflow-x: hidden;
+    scroll-behavior: smooth;
   }
   h1, h2, h3, h4 {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
+  }
+}
+
+/* ================== MOVIMENTO ================== */
+
+[id] {
+  scroll-margin-top: 5.5rem;
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ken-burns {
+  0% {
+    transform: scale(1.06) translate3d(0, 0, 0);
+  }
+  100% {
+    transform: scale(1.16) translate3d(-1%, -1%, 0);
+  }
+}
+
+@keyframes section-flash {
+  0% {
+    box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--turquoise) 0%, transparent);
+    background-color: transparent;
+  }
+  30% {
+    box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--turquoise) 10%, transparent);
+    background-color: color-mix(in srgb, var(--turquoise) 6%, transparent);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--turquoise) 0%, transparent);
+    background-color: transparent;
+  }
+}
+
+@keyframes script-shimmer {
+  0% {
+    background-position: -120% 0;
+  }
+  60%, 100% {
+    background-position: 220% 0;
+  }
+}
+
+/* Reveal-on-scroll */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+.reveal-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Hero */
+.hero-img-live {
+  animation: ken-burns 18s ease-in-out infinite alternate;
+}
+.hero-cascade > * {
+  opacity: 0;
+  animation: reveal-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.hero-cascade > *:nth-child(1) { animation-delay: 0.05s; }
+.hero-cascade > *:nth-child(2) { animation-delay: 0.2s; }
+.hero-cascade > *:nth-child(3) { animation-delay: 0.4s; }
+.hero-cascade > *:nth-child(4) { animation-delay: 0.55s; }
+
+.script-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    var(--turquoise) 35%,
+    #fff 50%,
+    var(--turquoise) 65%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: script-shimmer 3.2s ease-out 1s 1;
+}
+
+/* Navegação */
+.nav-underline {
+  position: relative;
+}
+.nav-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--turquoise);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav-underline:hover::after,
+.nav-underline[data-active="true"]::after {
+  transform: scaleX(1);
+}
+
+.section-flash {
+  animation: section-flash 1.1s ease-out;
+}
+
+/* ---- Cards de infraestrutura ---- */
+.amenidade-elegante {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s ease, border-color 0.45s ease;
+}
+.amenidade-elegante:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-soft);
+}
+.amenidade-elegante .amenidade-icon-tile {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.4s ease, color 0.4s ease;
+}
+.amenidade-elegante:hover .amenidade-icon-tile {
+  transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .hero-img-live,
+  .hero-cascade > *,
+  .script-shimmer,
+  .section-flash {
+    animation: none !important;
+  }
+  .hero-cascade > * {
+    opacity: 1;
+  }
+  .amenidade-elegante,
+  .amenidade-elegante .amenidade-icon-tile,
+  .nav-underline::after {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
   }
 }
