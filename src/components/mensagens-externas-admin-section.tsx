@@ -100,7 +100,7 @@ export function MensagensExternasAdminSection({ condominioId }: { condominioId: 
               {items.map((c) => {
                 const open = expandedId === c.id;
                 return (
-                  <li key={c.id} className="rounded-2xl border border-border bg-card shadow-sm">
+                  <li key={c.id} className="min-w-0 rounded-2xl border border-border bg-card shadow-sm">
                     <button
                       type="button"
                       onClick={() => toggle(c)}

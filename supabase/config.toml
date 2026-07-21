@@ -2,3 +2,6 @@ project_id = "kccgazitxagxcbsuuiwn"
 
 [functions.criar-morador]
 verify_jwt = true
+
+[functions.controle-login]
+verify_jwt = true

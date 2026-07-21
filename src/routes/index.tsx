@@ -12,6 +12,7 @@ import {
   Clock,
   Download,
   FileText,
+  Flame,
   Folder,
   FolderOpen,
   Hammer,
@@ -49,6 +50,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -121,6 +124,16 @@ import {
   Coffee,
 } from "lucide-react";
 import {
+  FlowerLotus,
+  Bicycle,
+  IdentificationBadge,
+  SoccerBall,
+  PawPrint,
+  Laptop,
+  WashingMachine,
+  Elevator,
+} from "@phosphor-icons/react";
+import {
   type Profile,
   type PautaRow,
   type ReservaRow,
@@ -131,6 +144,7 @@ import {
   type AmenidadeRow,
   type AvisoPublicoRow,
   type CondominioConfigRow,
+  type LoginGuardResult,
   RESERVATION_SPACES,
   RESERVA_DB_TO_UI,
   HISTORICO_DB_TO_UI,
@@ -159,6 +173,8 @@ import {
   uploadObraFoto,
   criarObra,
   criarMorador,
+  verificarBloqueioLogin,
+  registrarTentativaLogin,
   criarPauta,
   criarBloqueio,
   removerReserva,
@@ -189,7 +205,9 @@ import {
   removerAvisoPublico,
 } from "@/lib/portal-data";
 
-// Mapa de ícones (texto livre → componente lucide) para amenidades da landing
+// Mapa de ícones (nome lucide → componente) para amenidades. Chave é o que
+// fica salvo em `amenidades.icone`; ver também AMENIDADE_ICON_PICKER (grade
+// do seletor no admin) e AmenidadeIconTile (render com fallback pra emoji cru).
 const AMENIDADE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   shield: Shield,
   shieldcheck: ShieldCheck,
@@ -201,6 +219,7 @@ const AMENIDADE_ICONS: Record<string, React.ComponentType<{ className?: string }
   dumbbell: Dumbbell,
   car: Car,
   utensils: Utensils,
+  flame: Flame,
   flower: Flower2,
   flower2: Flower2,
   sun: Sun,
@@ -216,12 +235,109 @@ const AMENIDADE_ICONS: Record<string, React.ComponentType<{ className?: string }
   sparkles: Sparkles,
   building: Building2,
   building2: Building2,
+  // Phosphor — ampliação da grade além do que o lucide cobre (rodada 2, ver
+  // docs/prd/amenidades-icones-phosphor/requirements.md).
+  flowerlotus: FlowerLotus,
+  bicycle: Bicycle,
+  identificationbadge: IdentificationBadge,
+  soccerball: SoccerBall,
+  pawprint: PawPrint,
+  laptop: Laptop,
+  washingmachine: WashingMachine,
+  elevator: Elevator,
 };
 
-function AmenidadeIcon({ icone, className }: { icone: string | null; className?: string }) {
-  const key = (icone ?? "").toLowerCase().trim();
-  const Icon = AMENIDADE_ICONS[key] ?? Sparkles;
-  return <Icon className={className} />;
+// Grade curada do seletor no admin (rótulo em português por amenidade comum).
+// Ícones fora dessa lista continuam funcionando se já salvos (compat.), mas
+// não aparecem na grade — pra isso o admin usa o campo de emoji livre.
+const AMENIDADE_ICON_PICKER: { key: string; label: string }[] = [
+  { key: "shield", label: "Segurança" },
+  { key: "waves", label: "Piscina" },
+  { key: "dumbbell", label: "Academia" },
+  { key: "flame", label: "Churrasqueira" },
+  { key: "trees", label: "Área verde" },
+  { key: "flower2", label: "Jardim" },
+  { key: "car", label: "Estacionamento" },
+  { key: "party", label: "Salão de festas" },
+  { key: "home", label: "Salão" },
+  { key: "users", label: "Convivência" },
+  { key: "baby", label: "Playground" },
+  { key: "gamepad2", label: "Jogos" },
+  { key: "wifi", label: "Wi-Fi" },
+  { key: "coffee", label: "Copa" },
+  { key: "sun", label: "Área externa" },
+  { key: "building2", label: "Prédio" },
+  { key: "flowerlotus", label: "Spa/Sauna" },
+  { key: "bicycle", label: "Bicicletário" },
+  { key: "identificationbadge", label: "Portaria" },
+  { key: "soccerball", label: "Quadra poliesportiva" },
+  { key: "pawprint", label: "Pet place" },
+  { key: "laptop", label: "Coworking" },
+  { key: "washingmachine", label: "Lavanderia" },
+  { key: "elevator", label: "Elevador" },
+];
+
+// Emoji não é ASCII — se a string salva não bater com nenhuma chave do mapa
+// lucide, mas tiver caractere fora do intervalo ASCII, ela é um emoji colado
+// pelo admin (ex. 🥩) e deve ser exibida como está, não cair no fallback.
+const isProvavelEmoji = (value: string) => /[^\x00-\x7F]/.test(value);
+
+// Ícone lucide e emoji são linguagens visuais diferentes (traço monocromático
+// vs. glifo colorido) — por isso o tile NÃO força a mesma caixa colorida nos
+// dois casos: lucide ganha o quadrado com bg da marca, emoji fica "solto",
+// maior, sem fundo, como um sticker (padrão Notion/Slack), senão o emoji
+// parece "encaixado à força" numa caixa que não foi feita pra ele.
+function AmenidadeIconTile({
+  icone,
+  size = "md",
+  hoverInvert = false,
+}: {
+  icone: string | null;
+  size?: "xs" | "sm" | "md";
+  hoverInvert?: boolean;
+}) {
+  const raw = (icone ?? "").trim();
+  const key = raw.toLowerCase();
+  const Icon = AMENIDADE_ICONS[key];
+  const box =
+    size === "xs" ? "h-6 w-6 rounded-md" : size === "sm" ? "h-10 w-10 rounded-md" : "h-12 w-12 rounded-xl";
+  const iconClass = size === "xs" ? "h-3.5 w-3.5" : size === "sm" ? "h-4 w-4" : "h-5 w-5";
+  const emojiClass = size === "xs" ? "text-sm" : size === "sm" ? "text-xl" : "text-2xl";
+  const tileBase = cn("amenidade-icon-tile grid place-items-center", box);
+
+  if (Icon) {
+    return (
+      <div
+        className={cn(
+          tileBase,
+          "bg-secondary text-primary",
+          hoverInvert && "group-hover:bg-primary group-hover:text-primary-foreground",
+        )}
+      >
+        <Icon className={iconClass} />
+      </div>
+    );
+  }
+  if (raw && isProvavelEmoji(raw)) {
+    return (
+      <div className={tileBase}>
+        <span className={cn("leading-none", emojiClass)} aria-hidden>
+          {raw}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div
+      className={cn(
+        tileBase,
+        "bg-secondary text-primary",
+        hoverInvert && "group-hover:bg-primary group-hover:text-primary-foreground",
+      )}
+    >
+      <Sparkles className={iconClass} />
+    </div>
+  );
 }
 
 function AmenidadeCard({ amenidade, delay }: { amenidade: AmenidadeRow; delay: number }) {
@@ -230,9 +346,7 @@ function AmenidadeCard({ amenidade, delay }: { amenidade: AmenidadeRow; delay: n
       delay={delay}
       className="amenidade-elegante group rounded-2xl border border-border border-t-[3px] border-t-[color:var(--wood)] bg-card p-6 hover:border-[color:var(--sage)]"
     >
-      <div className="amenidade-icon-tile grid h-12 w-12 place-items-center rounded-xl bg-secondary text-primary group-hover:bg-primary group-hover:text-primary-foreground">
-        <AmenidadeIcon icone={amenidade.icone} className="h-5 w-5" />
-      </div>
+      <AmenidadeIconTile icone={amenidade.icone} size="md" hoverInvert />
       <h3 className="mt-5 text-lg font-semibold">{amenidade.nome}</h3>
       {amenidade.descricao && (
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{amenidade.descricao}</p>
@@ -261,6 +375,14 @@ export const Route = createFileRoute("/")({
 });
 
 // ================== ROOT ==================
+
+function mensagemBloqueioLogin(retryAfterSegundos?: number) {
+  if (!retryAfterSegundos || retryAfterSegundos < 60) {
+    return "Muitas tentativas de login. Tente novamente em instantes.";
+  }
+  const minutos = Math.ceil(retryAfterSegundos / 60);
+  return `Muitas tentativas de login. Tente novamente em ${minutos} minuto${minutos > 1 ? "s" : ""}.`;
+}
 
 function Index() {
   const [authUserId, setAuthUserId] = useState<string | null>(null);
@@ -317,9 +439,33 @@ function Index() {
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const password = String(formData.get("password") ?? "");
     if (!email || !password) return;
+
+    let check: LoginGuardResult = { bloqueado: false };
+    try {
+      check = await verificarBloqueioLogin(email);
+    } catch (e) {
+      console.error(e); // se o rate-limit falhar, não bloqueia o login (fail-open)
+    }
+    if (check.bloqueado) {
+      toast.error(mensagemBloqueioLogin(check.retry_after_segundos));
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    let resultado: LoginGuardResult = { bloqueado: false };
+    try {
+      resultado = await registrarTentativaLogin(email, !error);
+    } catch (e) {
+      console.error(e);
+    }
+
     if (error) {
-      toast.error(error.message || "Credenciais inválidas.");
+      toast.error(
+        resultado.bloqueado
+          ? mensagemBloqueioLogin(resultado.retry_after_segundos)
+          : error.message || "Credenciais inválidas.",
+      );
       return;
     }
     setLoginOpen(false);
@@ -1032,7 +1178,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
       return;
     }
     try {
-      await registrarVoto(pautaId, profile.id, choice);
+      await registrarVoto(profile.condominio_id, pautaId, profile.id, choice);
       setVotedIds((prev) => new Set(prev).add(pautaId));
       toast.success(`Voto computado: ${choice === "sim" ? "Sim" : "Não"}.`);
     } catch (e) {
@@ -1075,7 +1221,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               Portal do Morador
             </span>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <div className="flex items-center justify-end gap-2 sm:gap-3">
             <div className="hidden items-center gap-2 text-sm sm:flex">
               <div className="grid h-8 w-8 place-items-center rounded-full bg-secondary text-primary">
                 <User className="h-4 w-4" />
@@ -1088,7 +1234,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               )}
             </div>
             {adminAgenciaToggle}
-            <Button onClick={onLogout} variant="outline" size="sm" className="rounded-full">
+            <Button onClick={onLogout} variant="outline" size="sm" className="shrink-0 rounded-full">
               <LogOut className="h-4 w-4" /> Sair
             </Button>
           </div>
@@ -1219,7 +1365,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                   Acompanhe o status dos seus pedidos.
                 </p>
               </div>
-              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+              <span className="shrink-0 whitespace-nowrap rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
                 {reservas.length} {reservas.length === 1 ? "pedido" : "pedidos"}
               </span>
             </div>
@@ -1598,7 +1744,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
               <ShieldCheck className="h-3 w-3" /> <span className="hidden sm:inline">Painel da </span>Síndica
             </span>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <div className="flex items-center justify-end gap-2 sm:gap-3">
             <div className="hidden items-center gap-2 text-sm sm:flex">
               <AdminPendenciasBadge condominioId={profile.condominio_id} />
               <span className="font-medium capitalize">{profile.nome_completo}</span>
@@ -1607,7 +1753,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
               <AdminPendenciasBadge condominioId={profile.condominio_id} />
             </div>
             {adminAgenciaToggle}
-            <Button onClick={onLogout} variant="outline" size="sm" className="rounded-full">
+            <Button onClick={onLogout} variant="outline" size="sm" className="shrink-0 rounded-full">
               <LogOut className="h-4 w-4" /> Sair
             </Button>
           </div>
@@ -1761,14 +1907,16 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       </section>
 
       {/* Reservas */}
-      <ReservationsManagement
-        reservas={reservas}
-        loading={reservasLoading}
-        onApprove={handleApprove}
-        onReject={handleReject}
-        onBlock={() => setBlockOpen(true)}
-        onDeleteBloqueio={handleDeleteBloqueio}
-      />
+      <div id="admin-reservas">
+        <ReservationsManagement
+          reservas={reservas}
+          loading={reservasLoading}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onBlock={() => setBlockOpen(true)}
+          onDeleteBloqueio={handleDeleteBloqueio}
+        />
+      </div>
 
       {/* Obras admin */}
       <section className="bg-background py-16">
@@ -1814,13 +1962,21 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       </section>
 
       {/* Documentos admin */}
-      <ClassificadosAdminSection condominioId={profile.condominio_id} />
+      <div id="admin-classificados">
+        <ClassificadosAdminSection condominioId={profile.condominio_id} />
+      </div>
 
-      <VisitantesAdminSection condominioId={profile.condominio_id} />
+      <div id="admin-visitantes">
+        <VisitantesAdminSection condominioId={profile.condominio_id} />
+      </div>
 
-      <ChamadosAdminSection condominioId={profile.condominio_id} />
+      <div id="admin-chamados">
+        <ChamadosAdminSection condominioId={profile.condominio_id} />
+      </div>
 
-      <MensagensExternasAdminSection condominioId={profile.condominio_id} />
+      <div id="admin-mensagens">
+        <MensagensExternasAdminSection condominioId={profile.condominio_id} />
+      </div>
 
       <DocumentsAdminSection condominioId={profile.condominio_id} />
 
@@ -2345,7 +2501,7 @@ function ReservationsManagement({
             <Button onClick={onBlock} variant="outline" className="rounded-full">
               <Lock className="h-4 w-4" /> Bloquear data
             </Button>
-            <div className="rounded-full bg-[color:var(--gold)]/15 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
+            <div className="shrink-0 whitespace-nowrap rounded-full bg-[color:var(--gold)]/15 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
               {pending.length} {pending.length === 1 ? "pedido pendente" : "pedidos pendentes"}
             </div>
           </div>
@@ -2468,7 +2624,7 @@ function ReservationsManagement({
               {bloqueios.map((b) => {
                 const spaceName = RESERVATION_SPACES.find((s) => s.id === b.espaco)?.name ?? b.espaco;
                 return (
-                  <li key={b.id} className="flex items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-3">
+                  <li key={b.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-3">
                     <div className="min-w-0 flex-1 text-sm">
                       <p className="font-semibold">{spaceName} · <span className="font-mono">{b.data_inicio.split("-").reverse().join("/")}</span></p>
                       {b.observacoes && <p className="text-xs text-destructive">{b.observacoes}</p>}
@@ -2607,7 +2763,7 @@ function ReservationModule({
                 onClick={() => setSelectedDate(cell.iso)}
                 className={`group relative flex aspect-square flex-col items-center justify-center rounded-lg border text-center transition-all ${baseClass}`}
               >
-                <span className="font-display text-sm font-semibold sm:text-base">{cell.day}</span>
+                <span className="font-display text-base font-semibold sm:text-lg">{cell.day}</span>
                 {!cell.past && !isSelected && !isBlocked && !isReserved && (
                   <span className="mt-0.5 text-[9px] font-medium text-[color:var(--sage)]">Livre</span>
                 )}
@@ -2706,9 +2862,9 @@ function ObrasTabs({
   return (
     <Tabs defaultValue="inProgress" className="mt-10">
       <TabsList className="h-auto w-full justify-start gap-1 rounded-full bg-card p-1.5 shadow-[var(--shadow-soft)] sm:w-auto">
-        <TabsTrigger value="completed" className="rounded-full px-5 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Concluídas</TabsTrigger>
-        <TabsTrigger value="inProgress" className="rounded-full px-5 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Em andamento</TabsTrigger>
-        <TabsTrigger value="planned" className="rounded-full px-5 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Planejadas</TabsTrigger>
+        <TabsTrigger value="completed" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">Concluídas</TabsTrigger>
+        <TabsTrigger value="inProgress" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">Em andamento</TabsTrigger>
+        <TabsTrigger value="planned" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">Planejadas</TabsTrigger>
       </TabsList>
 
       <TabsContent value="completed" className="mt-10">
@@ -2752,7 +2908,7 @@ function ObraTimeline({
             <Icon className="h-4 w-4" />
           </div>
           <h3 className="mt-4 text-lg font-semibold leading-snug">{item.titulo}</h3>
-          {item.descricao && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.descricao}</p>}
+          {item.descricao && <p className="mt-2 break-words text-sm leading-relaxed text-muted-foreground">{item.descricao}</p>}
 
           <div className="mt-5">
             <div className="mb-1.5 flex items-center justify-between text-xs">
@@ -3893,8 +4049,8 @@ function LandingConfigSection({ condominioId }: { condominioId: string }) {
               <ul className="divide-y divide-border">
                 {amenidades.map((a) => (
                   <li key={a.id} className="flex items-center gap-3 py-3">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-secondary text-primary">
-                      <AmenidadeIcon icone={a.icone} className="h-4 w-4" />
+                    <div className="shrink-0">
+                      <AmenidadeIconTile icone={a.icone} size="sm" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{a.nome}</p>
@@ -3974,6 +4130,65 @@ function LandingConfigSection({ condominioId }: { condominioId: string }) {
   );
 }
 
+function AmenidadeIconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const trimmedKey = value.trim().toLowerCase();
+  const isCustomEmoji = value.trim() !== "" && !AMENIDADE_ICONS[trimmedKey];
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="flex h-10 w-full items-center justify-start gap-2 px-3 font-normal"
+        >
+          <AmenidadeIconTile icone={value} size="xs" />
+          <span className="truncate">{value.trim() || "Escolher ícone"}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 space-y-3" align="start">
+        <div className="grid grid-cols-4 gap-2">
+          {AMENIDADE_ICON_PICKER.map(({ key, label }) => {
+            const Icon = AMENIDADE_ICONS[key];
+            const selected = trimmedKey === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                title={label}
+                onClick={() => {
+                  onChange(key);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-md border p-2 text-center text-[10px] leading-tight hover:bg-secondary",
+                  selected ? "border-primary bg-secondary" : "border-transparent",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="line-clamp-1">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="space-y-1 border-t pt-3">
+          <Label htmlFor="am-icone-emoji" className="text-xs text-muted-foreground">
+            Ou cole um emoji (ex: 🍖, 🧖, 🛝)
+          </Label>
+          <Input
+            id="am-icone-emoji"
+            value={isCustomEmoji ? value : ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="🍖"
+            maxLength={8}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function AmenidadeDialog({
   open, onOpenChange, condominioId, amenidade, onSaved,
 }: {
@@ -4032,7 +4247,8 @@ function AmenidadeDialog({
         <DialogHeader>
           <DialogTitle>{amenidade ? "Editar amenidade" : "Nova amenidade"}</DialogTitle>
           <DialogDescription>
-            Ícone: nome de ícone lucide (ex: shield, waves, gamepad2, trees, dumbbell, wifi, coffee).
+            Escolha um ícone na grade ou cole um emoji — a prévia mostra exatamente o que vai
+            aparecer no site.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -4046,8 +4262,8 @@ function AmenidadeDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="am-icone">Ícone</Label>
-              <Input id="am-icone" value={icone} onChange={(e) => setIcone(e.target.value)} placeholder="shield" />
+              <Label>Ícone</Label>
+              <AmenidadeIconPicker value={icone} onChange={setIcone} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="am-ordem">Ordem</Label>

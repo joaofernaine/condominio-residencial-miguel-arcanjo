@@ -111,9 +111,7 @@ export const HISTORICO_UI_TO_DB: Record<FinancialStatus, HistoricoRow["status"]>
 // ---------- ESPAÇOS RESERVÁVEIS (hardcoded por enquanto) ----------
 
 export const RESERVATION_SPACES = [
-  { id: "salao", name: "Salão de Festas" },
   { id: "churrasqueira", name: "Churrasqueira" },
-  { id: "quadra", name: "Quadra Esportiva" },
 ];
 
 // ---------- AUTH / PROFILE ----------
@@ -158,10 +156,15 @@ export async function fetchMeusVotos(_condominioId: string, moradorId: string) {
   return (data ?? []) as { pauta_id: string; voto: "sim" | "nao" }[];
 }
 
-export async function registrarVoto(pautaId: string, moradorId: string, voto: "sim" | "nao") {
+export async function registrarVoto(
+  condominioId: string,
+  pautaId: string,
+  moradorId: string,
+  voto: "sim" | "nao",
+) {
   const { error } = await supabase
     .from("votos")
-    .insert({ pauta_id: pautaId, morador_id: moradorId, voto });
+    .insert({ condominio_id: condominioId, pauta_id: pautaId, morador_id: moradorId, voto });
   if (error) throw error;
 }
 
@@ -441,6 +444,30 @@ export async function criarMorador(input: {
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
   return data;
+}
+
+// ---------- LOGIN / RATE LIMITING ----------
+
+export type LoginGuardResult = {
+  bloqueado: boolean;
+  retry_after_segundos?: number;
+  tentativas_restantes?: number;
+};
+
+export async function verificarBloqueioLogin(email: string): Promise<LoginGuardResult> {
+  const { data, error } = await supabase.functions.invoke("controle-login", {
+    body: { action: "verificar", email },
+  });
+  if (error) throw error;
+  return data as LoginGuardResult;
+}
+
+export async function registrarTentativaLogin(email: string, sucesso: boolean): Promise<LoginGuardResult> {
+  const { data, error } = await supabase.functions.invoke("controle-login", {
+    body: { action: "registrar", email, sucesso },
+  });
+  if (error) throw error;
+  return data as LoginGuardResult;
 }
 
 export async function criarObra(input: {
