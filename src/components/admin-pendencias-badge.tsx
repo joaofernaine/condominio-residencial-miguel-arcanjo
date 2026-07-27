@@ -22,11 +22,11 @@ const PENDENCIA_ORDEM: { key: keyof PendenciasBreakdown; anchorId: string }[] = 
 
 async function countPendencias(condominioId: string): Promise<PendenciasBreakdown> {
   const [mensagens, chamados, reservas, visitantes, classificados] = await Promise.all([
-    supabase.from("contatos_publicos").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("lido", false).then((r) => r.count ?? 0).catch(() => 0),
-    supabase.from("chamados").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "aberto").then((r) => r.count ?? 0).catch(() => 0),
-    supabase.from("reservas").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "pendente").then((r) => r.count ?? 0).catch(() => 0),
-    supabase.from("visitantes").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "pendente").then((r) => r.count ?? 0).catch(() => 0),
-    supabase.from("classificados").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "pendente").then((r) => r.count ?? 0).catch(() => 0),
+    supabase.from("contatos_publicos").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("lido", false).then((r) => r.count ?? 0, () => 0),
+    supabase.from("chamados").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "aberto").then((r) => r.count ?? 0, () => 0),
+    supabase.from("reservas").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "pendente").then((r) => r.count ?? 0, () => 0),
+    supabase.from("visitantes").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "pendente").then((r) => r.count ?? 0, () => 0),
+    supabase.from("classificados").select("id", { count: "exact", head: true }).eq("condominio_id", condominioId).eq("status", "pendente").then((r) => r.count ?? 0, () => 0),
   ]);
   return { reservas, classificados, visitantes, chamados, mensagens };
 }

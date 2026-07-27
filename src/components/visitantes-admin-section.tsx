@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CalendarDays, Car, CheckCircle2, Loader2, User, UserCheck, Users, XCircle } from "lucide-react";
+import { CalendarDays, Car, CheckCircle2, Loader2, User, UserCheck, XCircle } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +19,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { VisitanteRow, VisitanteStatus } from "@/components/visitantes-resident-section";
+import {
+  STATUS_CLASS,
+  STATUS_LABEL,
+  atualizarStatusVisitante,
+  fetchVisitantesDoCondominio,
+  fmtDataBr,
+  pessoasDoVisitante,
+  placasDoVisitante,
+  type VisitanteComMorador,
+  type VisitanteStatus,
+} from "@/lib/visitantes-data";
 
 type FiltroStatus = "todos" | VisitanteStatus;
 
@@ -30,28 +39,6 @@ const FILTROS: { value: FiltroStatus; label: string }[] = [
   { value: "aprovado", label: "Aprovado" },
   { value: "recusado", label: "Recusado" },
 ];
-
-const STATUS_LABEL: Record<VisitanteStatus, string> = {
-  pendente: "Pendente",
-  aprovado: "Aprovado",
-  recusado: "Recusado",
-};
-
-const STATUS_CLASS: Record<VisitanteStatus, string> = {
-  pendente: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  aprovado: "bg-green-100 text-green-800 border-green-200",
-  recusado: "bg-red-100 text-red-800 border-red-200",
-};
-
-function fmtDate(v: string) {
-  if (!v) return "—";
-  const [y, m, d] = v.split("T")[0].split("-");
-  return `${d}/${m}/${y}`;
-}
-
-type VisitanteComMorador = VisitanteRow & {
-  morador: { nome_completo: string; unidade: string } | null;
-};
 
 export function VisitantesAdminSection({ condominioId }: { condominioId: string }) {
   const [items, setItems] = useState<VisitanteComMorador[]>([]);
@@ -64,13 +51,7 @@ export function VisitantesAdminSection({ condominioId }: { condominioId: string 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("visitantes")
-        .select("*, morador:profiles(nome_completo, unidade)")
-        .eq("condominio_id", condominioId)
-        .order("data_entrada", { ascending: true });
-      if (error) throw error;
-      setItems((data ?? []) as unknown as VisitanteComMorador[]);
+      setItems(await fetchVisitantesDoCondominio(condominioId));
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar visitantes.");
@@ -91,11 +72,7 @@ export function VisitantesAdminSection({ condominioId }: { condominioId: string 
   const aprovar = async (id: string) => {
     setBusy(true);
     try {
-      const { error } = await supabase
-        .from("visitantes")
-        .update({ status: "aprovado", motivo_recusa: null })
-        .eq("id", id);
-      if (error) throw error;
+      await atualizarStatusVisitante(id, "aprovado", null);
       toast.success("Visitante aprovado.");
       reload();
     } catch (e) {
@@ -111,11 +88,7 @@ export function VisitantesAdminSection({ condominioId }: { condominioId: string 
     if (!motivo.trim()) return toast.error("Informe o motivo da recusa.");
     setBusy(true);
     try {
-      const { error } = await supabase
-        .from("visitantes")
-        .update({ status: "recusado", motivo_recusa: motivo.trim() })
-        .eq("id", recusar.id);
-      if (error) throw error;
+      await atualizarStatusVisitante(recusar.id, "recusado", motivo.trim());
       toast.success("Visitante recusado.");
       setRecusar(null);
       setMotivo("");
@@ -168,89 +141,107 @@ export function VisitantesAdminSection({ condominioId }: { condominioId: string 
             </div>
           ) : (
             <ul className="grid gap-3 md:grid-cols-2">
-              {filtrados.map((v) => (
-                <li key={v.id} className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <User className="h-4 w-4 shrink-0 text-primary" />
-                        <p className="truncate font-medium">{v.nome_visitante}</p>
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                            v.tipo_visita === "airbnb"
-                              ? "border-purple-200 bg-purple-100 text-purple-800"
-                              : "border-border bg-secondary text-secondary-foreground"
-                          }`}
-                        >
-                          {v.tipo_visita === "airbnb" ? "Airbnb" : "Visita"}
-                        </span>
-                        {v.tipo_visita === "airbnb" && (v.acompanhantes ?? 0) > 0 && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-800">
-                            <Users className="h-3 w-3" /> {v.acompanhantes} acompanhantes
+              {filtrados.map((v) => {
+                const pessoas = pessoasDoVisitante(v);
+                const placas = placasDoVisitante(v);
+                return (
+                  <li key={v.id} className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <User className="h-4 w-4 shrink-0 text-primary" />
+                          <p className="break-words font-medium">{v.nome_visitante}</p>
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              v.tipo_visita === "airbnb"
+                                ? "border-purple-200 bg-purple-100 text-purple-800"
+                                : "border-border bg-secondary text-secondary-foreground"
+                            }`}
+                          >
+                            {v.tipo_visita === "airbnb" ? "Airbnb" : "Visita"}
                           </span>
+                          {pessoas.length > 1 && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                              {pessoas.length} pessoas
+                            </span>
+                          )}
+                        </div>
+                        <ul className="mt-1.5 space-y-0.5">
+                          {pessoas.map((p, i) => (
+                            <li key={i} className="break-words text-xs text-muted-foreground">
+                              <span className="text-foreground">
+                                {i + 1}. {p.nome}
+                              </span>
+                              {p.cpf ? ` — CPF ${p.cpf}` : " — CPF não informado"}
+                            </li>
+                          ))}
+                        </ul>
+                        {placas.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {placas.map((placa, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground"
+                              >
+                                <Car className="h-3 w-3" /> {placa}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+                          <CalendarDays className="h-3 w-3" />
+                          {fmtDataBr(v.data_entrada)} → {fmtDataBr(v.data_saida)}
+                        </p>
+                        <p className="mt-2 text-xs">
+                          <span className="font-medium">{v.morador?.nome_completo ?? "—"}</span>
+                          {v.morador?.unidade && (
+                            <span className="ml-1 rounded-full bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-secondary-foreground">
+                              {v.morador.unidade}
+                            </span>
+                          )}
+                        </p>
+                        {v.observacoes && (
+                          <p className="mt-2 text-xs text-muted-foreground">{v.observacoes}</p>
+                        )}
+                        {v.status === "recusado" && v.motivo_recusa && (
+                          <p className="mt-2 rounded-md bg-destructive/5 px-2.5 py-1.5 text-[11px] text-destructive">
+                            Motivo: {v.motivo_recusa}
+                          </p>
                         )}
                       </div>
-                      {v.cpf && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">CPF: {v.cpf}</p>
-                      )}
-                      {v.placa_veiculo && (
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                          <Car className="h-3 w-3" /> {v.placa_veiculo}
-                        </p>
-                      )}
-                      <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                        <CalendarDays className="h-3 w-3" />
-                        {fmtDate(v.data_entrada)} → {fmtDate(v.data_saida)}
-                      </p>
-                      <p className="mt-2 text-xs">
-                        <span className="font-medium">{v.morador?.nome_completo ?? "—"}</span>
-                        {v.morador?.unidade && (
-                          <span className="ml-1 rounded-full bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-secondary-foreground">
-                            {v.morador.unidade}
-                          </span>
-                        )}
-                      </p>
-                      {v.observacoes && (
-                        <p className="mt-2 text-xs text-muted-foreground">{v.observacoes}</p>
-                      )}
-                      {v.status === "recusado" && v.motivo_recusa && (
-                        <p className="mt-2 rounded-md bg-destructive/5 px-2.5 py-1.5 text-[11px] text-destructive">
-                          Motivo: {v.motivo_recusa}
-                        </p>
-                      )}
-                    </div>
-                    <span
-                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[v.status]}`}
-                    >
-                      {STATUS_LABEL[v.status]}
-                    </span>
-                  </div>
-                  {v.status === "pendente" && (
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      <Button
-                        size="sm"
-                        onClick={() => aprovar(v.id)}
-                        disabled={busy}
-                        className="w-full sm:w-auto"
+                      <span
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[v.status]}`}
                       >
-                        <CheckCircle2 className="h-4 w-4" /> Aprovar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setRecusar(v);
-                          setMotivo("");
-                        }}
-                        disabled={busy}
-                        className="w-full sm:w-auto"
-                      >
-                        <XCircle className="h-4 w-4" /> Recusar
-                      </Button>
+                        {STATUS_LABEL[v.status]}
+                      </span>
                     </div>
-                  )}
-                </li>
-              ))}
+                    {v.status === "pendente" && (
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          size="sm"
+                          onClick={() => aprovar(v.id)}
+                          disabled={busy}
+                          className="w-full sm:w-auto"
+                        >
+                          <CheckCircle2 className="h-4 w-4" /> Aprovar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setRecusar(v);
+                            setMotivo("");
+                          }}
+                          disabled={busy}
+                          className="w-full sm:w-auto"
+                        >
+                          <XCircle className="h-4 w-4" /> Recusar
+                        </Button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

@@ -1,67 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CalendarDays, Car, Loader2, Plus, Trash2, User, UserCheck, Users } from "lucide-react";
+import { CalendarDays, Car, Loader2, Plus, Trash2, User, UserCheck } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { NovoVisitanteDialog } from "@/components/visitantes-novo-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  STATUS_CLASS,
+  STATUS_LABEL,
+  deletarVisitante,
+  fetchVisitantesDoMorador,
+  fmtDataBr,
+  pessoasDoVisitante,
+  placasDoVisitante,
+  type VisitanteRow,
+} from "@/lib/visitantes-data";
 import type { Profile } from "@/lib/portal-data";
-
-export type VisitanteStatus = "pendente" | "aprovado" | "recusado";
-export type VisitanteTipo = "visita" | "airbnb";
-
-export type VisitanteRow = {
-  id: string;
-  condominio_id: string;
-  morador_id: string;
-  nome_visitante: string;
-  cpf: string | null;
-  placa_veiculo: string | null;
-  data_entrada: string;
-  data_saida: string;
-  observacoes: string | null;
-  status: VisitanteStatus;
-  motivo_recusa: string | null;
-  created_at: string;
-  tipo_visita: VisitanteTipo | null;
-  acompanhantes: number | null;
-};
-
-const STATUS_LABEL: Record<VisitanteStatus, string> = {
-  pendente: "Pendente",
-  aprovado: "Aprovado",
-  recusado: "Recusado",
-};
-
-const STATUS_CLASS: Record<VisitanteStatus, string> = {
-  pendente: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  aprovado: "bg-green-100 text-green-800 border-green-200",
-  recusado: "bg-red-100 text-red-800 border-red-200",
-};
-
-function maskCpf(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  return d
-    .replace(/^(\d{3})(\d)/, "$1.$2")
-    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d)/, ".$1-$2");
-}
-
-function fmtDate(v: string) {
-  if (!v) return "—";
-  const [y, m, d] = v.split("T")[0].split("-");
-  return `${d}/${m}/${y}`;
-}
 
 export function VisitantesResidentSection({ profile }: { profile: Profile }) {
   const [items, setItems] = useState<VisitanteRow[]>([]);
@@ -71,13 +24,7 @@ export function VisitantesResidentSection({ profile }: { profile: Profile }) {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("visitantes")
-        .select("*")
-        .eq("morador_id", profile.id)
-        .order("data_entrada", { ascending: false });
-      if (error) throw error;
-      setItems((data ?? []) as VisitanteRow[]);
+      setItems(await fetchVisitantesDoMorador(profile.id));
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar visitantes.");
@@ -93,8 +40,7 @@ export function VisitantesResidentSection({ profile }: { profile: Profile }) {
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir este pré-cadastro?")) return;
     try {
-      const { error } = await supabase.from("visitantes").delete().eq("id", id);
-      if (error) throw error;
+      await deletarVisitante(id);
       toast.success("Visitante removido.");
       reload();
     } catch (e) {
@@ -134,13 +80,15 @@ export function VisitantesResidentSection({ profile }: { profile: Profile }) {
             <ul className="grid gap-3 sm:grid-cols-2">
               {items.map((v) => {
                 const isAirbnb = v.tipo_visita === "airbnb";
+                const pessoas = pessoasDoVisitante(v);
+                const placas = placasDoVisitante(v);
                 return (
                   <li key={v.id} className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <User className="h-4 w-4 shrink-0 text-primary" />
-                          <p className="truncate font-medium">{v.nome_visitante}</p>
+                          <p className="break-words font-medium">{v.nome_visitante}</p>
                           <span
                             className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                               isAirbnb
@@ -150,23 +98,37 @@ export function VisitantesResidentSection({ profile }: { profile: Profile }) {
                           >
                             {isAirbnb ? "Airbnb" : "Visita"}
                           </span>
-                          {isAirbnb && (v.acompanhantes ?? 0) > 0 && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-800">
-                              <Users className="h-3 w-3" /> {v.acompanhantes} acompanhantes
+                          {pessoas.length > 1 && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                              {pessoas.length} pessoas
                             </span>
                           )}
                         </div>
-                        {v.cpf && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">CPF: {v.cpf}</p>
+                        <ul className="mt-1.5 space-y-0.5">
+                          {pessoas.map((p, i) => (
+                            <li key={i} className="break-words text-xs text-muted-foreground">
+                              <span className="text-foreground">
+                                {i + 1}. {p.nome}
+                              </span>
+                              {p.cpf ? ` — CPF ${p.cpf}` : " — CPF não informado"}
+                            </li>
+                          ))}
+                        </ul>
+                        {placas.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {placas.map((placa, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground"
+                              >
+                                <Car className="h-3 w-3" /> {placa}
+                              </span>
+                            ))}
+                          </div>
                         )}
-                        {v.placa_veiculo && (
-                          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                            <Car className="h-3 w-3" /> {v.placa_veiculo}
-                          </p>
-                        )}
-                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
                           <CalendarDays className="h-3 w-3" />
-                          {fmtDate(v.data_entrada)} → {fmtDate(v.data_saida)}
+                          {fmtDataBr(v.data_entrada)} → {fmtDataBr(v.data_saida)}
                         </p>
                         {v.observacoes && (
                           <p className="mt-2 text-xs text-muted-foreground">{v.observacoes}</p>
@@ -203,231 +165,7 @@ export function VisitantesResidentSection({ profile }: { profile: Profile }) {
         </div>
       </div>
 
-      <NewVisitanteDialog
-        open={open}
-        onOpenChange={setOpen}
-        profile={profile}
-        onCreated={reload}
-      />
+      <NovoVisitanteDialog open={open} onOpenChange={setOpen} profile={profile} onCreated={reload} />
     </section>
-  );
-}
-
-function NewVisitanteDialog({
-  open,
-  onOpenChange,
-  profile,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  profile: Profile;
-  onCreated: () => void;
-}) {
-  const [tipo, setTipo] = useState<VisitanteTipo>("visita");
-  const [nome, setNome] = useState("");
-  const [cpf, setCpf] = useState("");
-  const [placa, setPlaca] = useState("");
-  const [acompanhantes, setAcompanhantes] = useState<number>(0);
-  const [dataEntrada, setDataEntrada] = useState("");
-  const [dataSaida, setDataSaida] = useState("");
-  const [obs, setObs] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  const resetForm = () => {
-    setTipo("visita");
-    setNome("");
-    setCpf("");
-    setPlaca("");
-    setAcompanhantes(0);
-    setDataEntrada("");
-    setDataSaida("");
-    setObs("");
-  };
-
-  useEffect(() => {
-    if (!open) {
-      resetForm();
-      setSuccess(false);
-    }
-  }, [open]);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nome.trim()) return toast.error("Informe o nome do responsável.");
-    if (!dataEntrada || !dataSaida) return toast.error("Informe as datas de entrada e saída.");
-    if (dataSaida < dataEntrada) return toast.error("Data de saída não pode ser anterior à entrada.");
-    setBusy(true);
-    try {
-      const { error } = await supabase.from("visitantes").insert({
-        condominio_id: profile.condominio_id,
-        morador_id: profile.id,
-        nome_visitante: nome.trim(),
-        cpf: cpf.trim() || null,
-        placa_veiculo: placa.trim() || null,
-        data_entrada: dataEntrada,
-        data_saida: dataSaida,
-        observacoes: obs.trim() || null,
-        status: "pendente",
-        tipo_visita: tipo,
-        acompanhantes: tipo === "airbnb" ? Math.max(0, Number(acompanhantes) || 0) : 0,
-      });
-      if (error) throw error;
-      toast.success("Visitante cadastrado. Aguarde aprovação.");
-      onCreated();
-      setSuccess(true);
-    } catch (e) {
-      console.error(e);
-      toast.error("Erro ao cadastrar visitante.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Cadastrar visitante</DialogTitle>
-          <DialogDescription>
-            Cadastre cada visitante individualmente para controle de entrada.
-          </DialogDescription>
-        </DialogHeader>
-        {success ? (
-          <div className="space-y-5 py-4">
-            <div className="rounded-xl bg-primary/10 p-4 text-sm text-primary">
-              Visitante cadastrado com sucesso. Aguarde aprovação.
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                onClick={() => {
-                  resetForm();
-                  setSuccess(false);
-                }}
-              >
-                Cadastrar outro visitante
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  onOpenChange(false);
-                  setSuccess(false);
-                }}
-              >
-                Concluir
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={submit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-secondary/40 p-1">
-              <button
-                type="button"
-                onClick={() => setTipo("visita")}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
-                  tipo === "visita"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Visita
-              </button>
-              <button
-                type="button"
-                onClick={() => setTipo("airbnb")}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
-                  tipo === "airbnb"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Airbnb/Temporada
-              </button>
-            </div>
-            <div>
-              <Label htmlFor="v-nome">
-                {tipo === "airbnb" ? "Nome do responsável *" : "Nome do visitante *"}
-              </Label>
-              <Input id="v-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} required />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="v-cpf">{tipo === "airbnb" ? "CPF do responsável" : "CPF"}</Label>
-                <Input
-                  id="v-cpf"
-                  value={cpf}
-                  onChange={(e) => setCpf(maskCpf(e.target.value))}
-                  placeholder="000.000.000-00"
-                  inputMode="numeric"
-                />
-              </div>
-              <div>
-                <Label htmlFor="v-placa">Placa do veículo</Label>
-                <Input
-                  id="v-placa"
-                  value={placa}
-                  onChange={(e) => setPlaca(e.target.value.toUpperCase())}
-                  placeholder="ABC1D23"
-                  maxLength={10}
-                />
-              </div>
-            </div>
-            {tipo === "airbnb" && (
-              <div>
-                <Label htmlFor="v-acomp">Quantas pessoas acompanham?</Label>
-                <Input
-                  id="v-acomp"
-                  type="number"
-                  min={0}
-                  value={acompanhantes}
-                  onChange={(e) => setAcompanhantes(Math.max(0, Number(e.target.value) || 0))}
-                />
-              </div>
-            )}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="v-de">Data de entrada *</Label>
-                <Input
-                  id="v-de"
-                  type="date"
-                  value={dataEntrada}
-                  onChange={(e) => setDataEntrada(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="v-ds">Data de saída *</Label>
-                <Input
-                  id="v-ds"
-                  type="date"
-                  value={dataSaida}
-                  onChange={(e) => setDataSaida(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="v-obs">Observações</Label>
-              <Textarea
-                id="v-obs"
-                value={obs}
-                onChange={(e) => setObs(e.target.value)}
-                placeholder="Ex.: Mudança, aluguel temporário..."
-                rows={3}
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={busy}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cadastrar"}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }

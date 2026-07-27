@@ -376,6 +376,17 @@ export const Route = createFileRoute("/")({
 
 // ================== ROOT ==================
 
+// Blindagem defensiva: data_inicio é NOT NULL no banco hoje, mas o tipo
+// ReservaRow/OcupacaoRow não garante isso em runtime (já houve drift de
+// schema nessa área antes). Evita que um valor nulo/malformado derrube a
+// página inteira num .split() direto.
+function fmtDataReserva(v: string | null | undefined): string {
+  if (!v) return "—";
+  const [y, m, d] = v.split("-");
+  if (!y || !m || !d) return "—";
+  return `${d}/${m}/${y}`;
+}
+
 function mensagemBloqueioLogin(retryAfterSegundos?: number) {
   if (!retryAfterSegundos || retryAfterSegundos < 60) {
     return "Muitas tentativas de login. Tente novamente em instantes.";
@@ -1389,7 +1400,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold leading-snug">{spaceName}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          Data: <span className="font-mono">{r.data_inicio.split("-").reverse().join("/")}</span>
+                          Data: <span className="font-mono">{fmtDataReserva(r.data_inicio)}</span>
                         </p>
                         {r.observacoes && (
                           <p className="mt-1 text-xs text-muted-foreground italic">
@@ -2551,7 +2562,7 @@ function ReservationsManagement({
                           )}
                         </TableCell>
                         <TableCell className="font-mono text-xs">
-                          {r.data_inicio.split("-").reverse().join("/")}
+                          {fmtDataReserva(r.data_inicio)}
                         </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${RESERVATION_STATUS_STYLES[uiStatus]}`}>
@@ -2626,7 +2637,7 @@ function ReservationsManagement({
                 return (
                   <li key={b.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-3">
                     <div className="min-w-0 flex-1 text-sm">
-                      <p className="font-semibold">{spaceName} · <span className="font-mono">{b.data_inicio.split("-").reverse().join("/")}</span></p>
+                      <p className="font-semibold">{spaceName} · <span className="font-mono">{fmtDataReserva(b.data_inicio)}</span></p>
                       {b.observacoes && <p className="text-xs text-destructive">{b.observacoes}</p>}
                     </div>
                     <Button size="sm" variant="ghost" className="h-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteBloqueio(b.id)}>
