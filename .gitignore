@@ -37,3 +37,6 @@ dist-ssr
 
 # Lockfile redundante (o projeto usa bun.lock)
 package-lock.json
+
+# Artefatos de teste do Playwright MCP (screenshots, snapshots, logs)
+.playwright-mcp/

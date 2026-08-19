@@ -12,6 +12,7 @@ import {
   Clock,
   Download,
   FileText,
+  FileUp,
   Flame,
   Folder,
   FolderOpen,
@@ -104,6 +105,7 @@ import { ChamadosResidentSection } from "@/components/chamados-resident-section"
 import { ChamadosAdminSection } from "@/components/chamados-admin-section";
 import { MensagensExternasAdminSection } from "@/components/mensagens-externas-admin-section";
 import { AdminPendenciasBadge } from "@/components/admin-pendencias-badge";
+import { ImportarRelatorioDialog } from "@/components/importar-relatorio-dialog";
 import { Switch } from "@/components/ui/switch";
 import {
   Shield,
@@ -165,6 +167,7 @@ import {
   fetchMeuHistorico,
   atualizarHistorico,
   fetchMoradoresDoCondominio,
+  fetchFundoObrasTotal,
   fetchObras,
   fetchAtualizacoesObra,
   inserirAtualizacaoObra,
@@ -1117,6 +1120,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
   const currentYear = new Date().getFullYear();
   const [historico, setHistorico] = useState<HistoricoRow[]>([]);
   const [historicoLoading, setHistoricoLoading] = useState(true);
+  const [fundoObrasTotal, setFundoObrasTotal] = useState<number | null>(null);
 
   const loadPautas = useCallback(async () => {
     setPautasLoading(true);
@@ -1167,14 +1171,19 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
   const loadHistorico = useCallback(async () => {
     setHistoricoLoading(true);
     try {
-      setHistorico(await fetchMeuHistorico(profile.id, currentYear));
+      const [h, fundoObras] = await Promise.all([
+        fetchMeuHistorico(profile.id, currentYear),
+        fetchFundoObrasTotal(profile.condominio_id),
+      ]);
+      setHistorico(h);
+      setFundoObrasTotal(fundoObras);
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar histórico financeiro.");
     } finally {
       setHistoricoLoading(false);
     }
-  }, [profile.id, currentYear]);
+  }, [profile.id, profile.condominio_id, currentYear]);
 
   useEffect(() => {
     loadPautas();
@@ -1289,7 +1298,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
             ) : (
               <div className="grid gap-6 md:grid-cols-2">
                 {pautas.map((p, i) => (
-                  <Reveal key={p.id} delay={(i % 2) * 100}>
+                  <Reveal key={p.id} delay={(i % 2) * 100} className="min-w-0">
                     <PollCard pauta={p} hasVoted={votedIds.has(p.id)} onVote={handleVote} />
                   </Reveal>
                 ))}
@@ -1303,7 +1312,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
       <section className="bg-secondary/40 py-20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="grid gap-12 lg:grid-cols-[1fr_2fr]">
-            <Reveal>
+            <Reveal className="min-w-0">
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
                 <FileText className="h-3.5 w-3.5" /> Transparência financeira
               </span>
@@ -1311,9 +1320,17 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               <p className="mt-4 text-muted-foreground">
                 Situação de pagamento da sua unidade ({profile.unidade || "—"}) mês a mês.
               </p>
+              {fundoObrasTotal !== null && fundoObrasTotal > 0 && (
+                <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-[color:var(--gold)]/30 bg-[color:var(--gold)]/10 px-4 py-2.5 text-sm">
+                  <Hammer className="h-4 w-4 shrink-0 text-[color:var(--gold)]" />
+                  <span>
+                    Fundo de Obras arrecadado: <strong>{fundoObrasTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
+                  </span>
+                </div>
+              )}
             </Reveal>
 
-            <Reveal delay={100}>
+            <Reveal delay={100} className="min-w-0">
               {historicoLoading ? (
                 <LoadingBlock label="Carregando histórico…" />
               ) : (
@@ -1483,7 +1500,7 @@ function PollCard({
           </div>
         </div>
       ) : (
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           <Button onClick={() => onVote(pauta.id, "sim")} className="flex-1 rounded-full bg-[color:var(--sage)] text-primary-foreground hover:opacity-90">
             <ThumbsUp className="h-4 w-4" /> Votar Sim
           </Button>
@@ -1498,13 +1515,23 @@ function PollCard({
 
 // ================== MY PAYMENT GRID (morador) ==================
 
+const HEATMAP_CELL_STYLES: Record<FinancialStatus, string> = {
+  "Em dia": "bg-[color:var(--sage)] text-[#06231f]",
+  Pendente: "bg-[color:var(--gold)] text-primary-foreground",
+  Atrasado: "bg-destructive text-destructive-foreground",
+};
+
 function MyPaymentGrid({ rows, year }: { rows: HistoricoRow[]; year: number }) {
-  const [expanded, setExpanded] = useState(false);
   const byMonth = new Map<number, HistoricoRow>();
   rows.forEach((r) => byMonth.set(r.mes, r));
   const currentMonth = new Date().getMonth() + 1;
-  const currentRow = byMonth.get(currentMonth);
-  const currentUiStatus = currentRow ? HISTORICO_DB_TO_UI[currentRow.status] : null;
+
+  const counts = { "Em dia": 0, Pendente: 0, Atrasado: 0, semRegistro: 0 };
+  for (let m = 1; m <= currentMonth; m++) {
+    const row = byMonth.get(m);
+    if (!row) { counts.semRegistro++; continue; }
+    counts[HISTORICO_DB_TO_UI[row.status]]++;
+  }
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
@@ -1513,63 +1540,54 @@ function MyPaymentGrid({ rows, year }: { rows: HistoricoRow[]; year: number }) {
         <Wallet className="h-4 w-4 text-muted-foreground" />
       </div>
 
-      {/* Mês atual em destaque */}
-      <div className="rounded-xl border border-primary bg-primary/5 p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mês atual</p>
-            <p className="mt-1 font-display text-2xl font-semibold">{MONTH_NAMES_PT[currentMonth - 1]}</p>
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
+        <strong className="font-semibold">
+          {counts["Em dia"]} de {currentMonth} {counts["Em dia"] === 1 ? "mês em dia" : "meses em dia"}
+        </strong>
+        {(counts.Atrasado > 0 || counts.Pendente > 0) && (
+          <span className="text-xs text-muted-foreground">
+            {counts.Atrasado > 0 && `· ${counts.Atrasado} ${counts.Atrasado === 1 ? "atrasado" : "atrasados"} `}
+            {counts.Pendente > 0 && `· ${counts.Pendente} ${counts.Pendente === 1 ? "pendente" : "pendentes"}`}
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-6 gap-2">
+        {Array.from({ length: 12 }).map((_, i) => {
+          const monthNum = i + 1;
+          const row = byMonth.get(monthNum);
+          const uiStatus = row ? HISTORICO_DB_TO_UI[row.status] : null;
+          const isFuture = monthNum > currentMonth;
+          const isCurrent = monthNum === currentMonth;
+          const cellClass = isFuture
+            ? "bg-secondary/50 text-muted-foreground"
+            : uiStatus
+              ? HEATMAP_CELL_STYLES[uiStatus]
+              : "bg-secondary/50 text-muted-foreground";
+          return (
+            <div
+              key={monthNum}
+              title={`${MONTH_NAMES_PT[i]}: ${isFuture ? "A faturar" : (uiStatus ?? "Sem registro")}`}
+              className={`flex aspect-square flex-col items-center justify-center rounded-lg text-[10px] font-bold uppercase tracking-wide ${cellClass} ${isCurrent ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""}`}
+            >
+              {MONTH_NAMES_PT_SHORT[i]}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-border pt-3">
+        {(["Em dia", "Atrasado", "Pendente"] as FinancialStatus[]).map((status) => (
+          <div key={status} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className={`h-2.5 w-2.5 rounded-sm ${HEATMAP_CELL_STYLES[status].split(" ")[0]}`} />
+            {status}
           </div>
-          {currentUiStatus ? (
-            <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${STATUS_STYLES[currentUiStatus]}`}>
-              {currentUiStatus}
-            </span>
-          ) : (
-            <span className="text-xs italic text-muted-foreground">Sem registro</span>
-          )}
+        ))}
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="h-2.5 w-2.5 rounded-sm bg-secondary/50" />
+          A faturar
         </div>
       </div>
-
-      <div className="mt-4 flex justify-center">
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="text-xs font-semibold uppercase tracking-wider text-primary hover:underline"
-        >
-          {expanded ? "Recolher" : `Ver histórico completo (${year})`}
-        </button>
-      </div>
-
-      {expanded && (
-        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
-          {Array.from({ length: 12 }).map((_, i) => {
-            const monthNum = i + 1;
-            const row = byMonth.get(monthNum);
-            const uiStatus = row ? HISTORICO_DB_TO_UI[row.status] : null;
-            const isFuture = monthNum > currentMonth;
-            const isCurrent = monthNum === currentMonth;
-            return (
-              <div key={monthNum} className={`rounded-xl border p-3 ${isCurrent ? "border-primary bg-primary/5" : isFuture ? "border-dashed border-border bg-secondary/30" : "border-border bg-card"}`}>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{MONTH_NAMES_PT_SHORT[i]}</p>
-                  {isCurrent && (
-                    <span className="rounded-full bg-primary px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">Atual</span>
-                  )}
-                </div>
-                {isFuture ? (
-                  <p className="mt-3 text-[11px] italic text-muted-foreground">A faturar</p>
-                ) : uiStatus ? (
-                  <span className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[uiStatus]}`}>
-                    {uiStatus}
-                  </span>
-                ) : (
-                  <p className="mt-3 text-[11px] italic text-muted-foreground">Sem registro</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -1596,6 +1614,8 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const [moradores, setMoradores] = useState<MoradorInfo[]>([]);
   const [finLoading, setFinLoading] = useState(true);
   const [historyUnitId, setHistoryUnitId] = useState<string | null>(null);
+  const [fundoObrasTotal, setFundoObrasTotal] = useState<number | null>(null);
+  const [importarOpen, setImportarOpen] = useState(false);
 
   const [obras, setObras] = useState<ObraRow[]>([]);
   const [obrasLoading, setObrasLoading] = useState(true);
@@ -1630,12 +1650,14 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const loadFinanceiro = useCallback(async () => {
     setFinLoading(true);
     try {
-      const [h, m] = await Promise.all([
+      const [h, m, fundoObras] = await Promise.all([
         fetchHistoricoCondominio(profile.condominio_id),
         fetchMoradoresDoCondominio(profile.condominio_id),
+        fetchFundoObrasTotal(profile.condominio_id),
       ]);
       setHistorico(h);
       setMoradores(m);
+      setFundoObrasTotal(fundoObras);
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar dados financeiros.");
@@ -1805,68 +1827,125 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                 Clique em uma linha para editar o histórico mensal ({currentYear}).
               </p>
             </div>
-            <Button onClick={() => setNewMoradorOpen(true)} className="rounded-full">
-              <Plus className="h-4 w-4" /> Cadastrar morador
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => setImportarOpen(true)} variant="outline" className="rounded-full">
+                <FileUp className="h-4 w-4" /> Importar relatório financeiro
+              </Button>
+              <Button onClick={() => setNewMoradorOpen(true)} className="rounded-full">
+                <Plus className="h-4 w-4" /> Cadastrar morador
+              </Button>
+            </div>
           </div>
 
+          {fundoObrasTotal !== null && fundoObrasTotal > 0 && (
+            <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-[color:var(--gold)]/30 bg-[color:var(--gold)]/10 px-4 py-2.5 text-sm">
+              <Hammer className="h-4 w-4 text-[color:var(--gold)]" />
+              <span>
+                Fundo de Obras arrecadado: <strong>{fundoObrasTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
+              </span>
+            </div>
+          )}
 
-          <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[120px]">Unidade</TableHead>
-                  <TableHead>Morador responsável</TableHead>
-                  <TableHead>Status ({MONTH_NAMES_PT_SHORT[currentMonth - 1]}/{currentYear})</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {finLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                      <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                    </TableCell>
-                  </TableRow>
-                ) : moradores.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                      Nenhuma unidade cadastrada.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  moradores.map((m) => {
-                    const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
-                    const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
-                    return (
-                      <TableRow key={m.id} onClick={() => setHistoryUnitId(m.id)} className="cursor-pointer">
-                        <TableCell className="font-mono font-semibold">{m.unidade}</TableCell>
-                        <TableCell>{m.nome_completo}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
-                            {uiStatus}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
-                              <History className="h-3.5 w-3.5" /> Histórico
-                            </Button>
-                            <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
-                              <Pencil className="h-3.5 w-3.5" /> Editar
-                            </Button>
-                            <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
-                              <Trash2 className="h-3.5 w-3.5" /> Excluir
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <ImportarRelatorioDialog
+            open={importarOpen}
+            onOpenChange={setImportarOpen}
+            condominioId={profile.condominio_id}
+            meuProfileId={profile.id}
+            onImportado={loadFinanceiro}
+          />
+
+
+          {finLoading ? (
+            <div className="mt-8 rounded-2xl border border-border bg-card py-8 text-center text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
+              <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+            </div>
+          ) : moradores.length === 0 ? (
+            <div className="mt-8 rounded-2xl border border-border bg-card py-8 text-center text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
+              Nenhuma unidade cadastrada.
+            </div>
+          ) : (
+            <>
+              {/* Mobile: cards empilhados (a tabela não cabe em telas estreitas) */}
+              <ul className="mt-8 grid gap-3 md:hidden">
+                {moradores.map((m) => {
+                  const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
+                  const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
+                  return (
+                    <li
+                      key={m.id}
+                      onClick={() => setHistoryUnitId(m.id)}
+                      className="min-w-0 cursor-pointer rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-mono text-sm font-semibold">{m.unidade}</p>
+                          <p className="mt-0.5 truncate text-sm text-muted-foreground">{m.nome_completo}</p>
+                        </div>
+                        <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
+                          {uiStatus}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
+                          <History className="h-3.5 w-3.5" /> Histórico
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
+                          <Pencil className="h-3.5 w-3.5" /> Editar
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
+                          <Trash2 className="h-3.5 w-3.5" /> Excluir
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {/* Desktop: tabela */}
+              <div className="mt-8 hidden overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)] md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[120px]">Unidade</TableHead>
+                      <TableHead>Morador responsável</TableHead>
+                      <TableHead>Status ({MONTH_NAMES_PT_SHORT[currentMonth - 1]}/{currentYear})</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {moradores.map((m) => {
+                      const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
+                      const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
+                      return (
+                        <TableRow key={m.id} onClick={() => setHistoryUnitId(m.id)} className="cursor-pointer">
+                          <TableCell className="font-mono font-semibold">{m.unidade}</TableCell>
+                          <TableCell>{m.nome_completo}</TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
+                              {uiStatus}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
+                                <History className="h-3.5 w-3.5" /> Histórico
+                              </Button>
+                              <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
+                                <Pencil className="h-3.5 w-3.5" /> Editar
+                              </Button>
+                              <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
+                                <Trash2 className="h-3.5 w-3.5" /> Excluir
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
@@ -2508,7 +2587,7 @@ function ReservationsManagement({
               Aprove ou recuse os pedidos enviados pelos moradores.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={onBlock} variant="outline" className="rounded-full">
               <Lock className="h-4 w-4" /> Bloquear data
             </Button>
@@ -2872,7 +2951,7 @@ function ObrasTabs({
 
   return (
     <Tabs defaultValue="inProgress" className="mt-10">
-      <TabsList className="h-auto w-full justify-start gap-1 rounded-full bg-card p-1.5 shadow-[var(--shadow-soft)] sm:w-auto">
+      <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-full bg-card p-1.5 shadow-[var(--shadow-soft)] sm:w-auto sm:flex-nowrap">
         <TabsTrigger value="completed" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">Concluídas</TabsTrigger>
         <TabsTrigger value="inProgress" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">Em andamento</TabsTrigger>
         <TabsTrigger value="planned" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">Planejadas</TabsTrigger>
@@ -3514,7 +3593,7 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
         </div>
 
         <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_2fr]">
-          <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
+          <form onSubmit={submit} className="min-w-0 space-y-4 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
             <div className="space-y-2">
               <Label htmlFor="doc-tipo">Tipo</Label>
               <Input
@@ -3559,7 +3638,7 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
             </Button>
           </form>
 
-          <div>
+          <div className="min-w-0">
             {loading ? (
               <LoadingBlock label="Carregando documentos…" />
             ) : byYear.length === 0 ? (
