@@ -1171,17 +1171,19 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
   const loadHistorico = useCallback(async () => {
     setHistoricoLoading(true);
     try {
-      const [h, fundoObras] = await Promise.all([
-        fetchMeuHistorico(profile.id, currentYear),
-        fetchFundoObrasTotal(profile.condominio_id),
-      ]);
-      setHistorico(h);
-      setFundoObrasTotal(fundoObras);
+      setHistorico(await fetchMeuHistorico(profile.id, currentYear));
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar histórico financeiro.");
     } finally {
       setHistoricoLoading(false);
+    }
+    // Fundo de Obras é um extra opcional — não pode derrubar o histórico
+    // se a função ainda não existir nesse ambiente (ex. antes da migration).
+    try {
+      setFundoObrasTotal(await fetchFundoObrasTotal(profile.condominio_id));
+    } catch (e) {
+      console.error(e);
     }
   }, [profile.id, profile.condominio_id, currentYear]);
 
@@ -1602,6 +1604,17 @@ const STATUS_STYLES: Record<FinancialStatus, string> = {
 
 type MoradorInfo = { id: string; nome_completo: string; unidade: string };
 
+function parseUnidade(unidade: string): { bloco: string; numero: number } {
+  const [bloco, numero] = unidade.split("-");
+  return { bloco: bloco ?? unidade, numero: Number(numero) || 0 };
+}
+
+function compareUnidade(a: string, b: string) {
+  const pa = parseUnidade(a);
+  const pb = parseUnidade(b);
+  return pa.bloco !== pb.bloco ? pa.bloco.localeCompare(pb.bloco) : pa.numero - pb.numero;
+}
+
 function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [pautasLoading, setPautasLoading] = useState(true);
@@ -1630,6 +1643,26 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const [blockOpen, setBlockOpen] = useState(false);
   const [editMorador, setEditMorador] = useState<MoradorInfo | null>(null);
   const [deleteMoradorId, setDeleteMoradorId] = useState<string | null>(null);
+  const [openBlocos, setOpenBlocos] = useState<Set<string>>(new Set());
+
+  const moradoresPorBloco = useMemo(() => {
+    const grupos = new Map<string, MoradorInfo[]>();
+    for (const m of moradores) {
+      const { bloco } = parseUnidade(m.unidade);
+      if (!grupos.has(bloco)) grupos.set(bloco, []);
+      grupos.get(bloco)!.push(m);
+    }
+    return Array.from(grupos.entries());
+  }, [moradores]);
+
+  const toggleBloco = (bloco: string) => {
+    setOpenBlocos((prev) => {
+      const next = new Set(prev);
+      if (next.has(bloco)) next.delete(bloco);
+      else next.add(bloco);
+      return next;
+    });
+  };
 
 
 
@@ -1650,19 +1683,24 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const loadFinanceiro = useCallback(async () => {
     setFinLoading(true);
     try {
-      const [h, m, fundoObras] = await Promise.all([
+      const [h, m] = await Promise.all([
         fetchHistoricoCondominio(profile.condominio_id),
         fetchMoradoresDoCondominio(profile.condominio_id),
-        fetchFundoObrasTotal(profile.condominio_id),
       ]);
       setHistorico(h);
-      setMoradores(m);
-      setFundoObrasTotal(fundoObras);
+      setMoradores([...m].sort((a, b) => compareUnidade(a.unidade, b.unidade)));
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar dados financeiros.");
     } finally {
       setFinLoading(false);
+    }
+    // Fundo de Obras é um extra opcional — não pode derrubar moradores/histórico
+    // se a função ainda não existir nesse ambiente (ex. antes da migration).
+    try {
+      setFundoObrasTotal(await fetchFundoObrasTotal(profile.condominio_id));
+    } catch (e) {
+      console.error(e);
     }
   }, [profile.condominio_id]);
 
@@ -1865,43 +1903,68 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
             </div>
           ) : (
             <>
-              {/* Mobile: cards empilhados (a tabela não cabe em telas estreitas) */}
-              <ul className="mt-8 grid gap-3 md:hidden">
-                {moradores.map((m) => {
-                  const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
-                  const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
+              {/* Mobile: cards empilhados agrupados por bloco (a tabela não cabe em telas estreitas) */}
+              <div className="mt-8 grid gap-3 md:hidden">
+                {moradoresPorBloco.map(([bloco, lista]) => {
+                  const open = openBlocos.has(bloco);
                   return (
-                    <li
-                      key={m.id}
-                      onClick={() => setHistoryUnitId(m.id)}
-                      className="min-w-0 cursor-pointer rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)]"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-mono text-sm font-semibold">{m.unidade}</p>
-                          <p className="mt-0.5 truncate text-sm text-muted-foreground">{m.nome_completo}</p>
-                        </div>
-                        <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
-                          {uiStatus}
+                    <div key={bloco}>
+                      <button
+                        type="button"
+                        onClick={() => toggleBloco(bloco)}
+                        aria-expanded={open}
+                        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-[var(--shadow-soft)]"
+                      >
+                        <span className="font-medium">
+                          Bloco {bloco}{" "}
+                          <span className="font-normal text-muted-foreground">
+                            · {lista.length} {lista.length === 1 ? "unidade" : "unidades"}
+                          </span>
                         </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
-                          <History className="h-3.5 w-3.5" /> Histórico
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
-                          <Pencil className="h-3.5 w-3.5" /> Editar
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
-                          <Trash2 className="h-3.5 w-3.5" /> Excluir
-                        </Button>
-                      </div>
-                    </li>
+                        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+                      </button>
+                      {open && (
+                        <ul className="mt-3 grid gap-3">
+                          {lista.map((m) => {
+                            const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
+                            const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
+                            return (
+                              <li
+                                key={m.id}
+                                onClick={() => setHistoryUnitId(m.id)}
+                                className="min-w-0 cursor-pointer rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)]"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="font-mono text-sm font-semibold">{m.unidade}</p>
+                                    <p className="mt-0.5 truncate text-sm text-muted-foreground">{m.nome_completo}</p>
+                                  </div>
+                                  <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
+                                    {uiStatus}
+                                  </span>
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                                  <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
+                                    <History className="h-3.5 w-3.5" /> Histórico
+                                  </Button>
+                                  <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
+                                    <Pencil className="h-3.5 w-3.5" /> Editar
+                                  </Button>
+                                  <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" /> Excluir
+                                  </Button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
 
-              {/* Desktop: tabela */}
+              {/* Desktop: tabela agrupada por bloco */}
               <div className="mt-8 hidden overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)] md:block">
                 <Table>
                   <TableHeader>
@@ -1913,32 +1976,55 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {moradores.map((m) => {
-                      const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
-                      const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
+                    {moradoresPorBloco.map(([bloco, lista]) => {
+                      const open = openBlocos.has(bloco);
                       return (
-                        <TableRow key={m.id} onClick={() => setHistoryUnitId(m.id)} className="cursor-pointer">
-                          <TableCell className="font-mono font-semibold">{m.unidade}</TableCell>
-                          <TableCell>{m.nome_completo}</TableCell>
-                          <TableCell>
-                            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
-                              {uiStatus}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex justify-end gap-2">
-                              <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
-                                <History className="h-3.5 w-3.5" /> Histórico
-                              </Button>
-                              <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
-                                <Pencil className="h-3.5 w-3.5" /> Editar
-                              </Button>
-                              <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
-                                <Trash2 className="h-3.5 w-3.5" /> Excluir
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                        <Fragment key={bloco}>
+                          <TableRow
+                            onClick={() => toggleBloco(bloco)}
+                            className="cursor-pointer bg-secondary/40 hover:bg-secondary/60"
+                            aria-expanded={open}
+                          >
+                            <TableCell colSpan={4} className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+                                Bloco {bloco}{" "}
+                                <span className="font-normal text-muted-foreground">
+                                  · {lista.length} {lista.length === 1 ? "unidade" : "unidades"}
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {open &&
+                            lista.map((m) => {
+                              const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
+                              const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
+                              return (
+                                <TableRow key={m.id} onClick={() => setHistoryUnitId(m.id)} className="cursor-pointer">
+                                  <TableCell className="font-mono font-semibold">{m.unidade}</TableCell>
+                                  <TableCell>{m.nome_completo}</TableCell>
+                                  <TableCell>
+                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
+                                      {uiStatus}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex justify-end gap-2">
+                                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
+                                        <History className="h-3.5 w-3.5" /> Histórico
+                                      </Button>
+                                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
+                                        <Pencil className="h-3.5 w-3.5" /> Editar
+                                      </Button>
+                                      <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
+                                        <Trash2 className="h-3.5 w-3.5" /> Excluir
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                        </Fragment>
                       );
                     })}
                   </TableBody>
@@ -3741,55 +3827,102 @@ function PaymentHistoryDialog({
         </DialogHeader>
 
         {morador && (
-          <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
-            {Array.from({ length: 12 }).map((_, i) => {
-              const monthNum = i + 1;
-              const row = rowsByMonth.get(monthNum);
-              const uiStatus = row ? HISTORICO_DB_TO_UI[row.status] : null;
-              const isFuture = i > currentMonthIdx;
-              const isCurrent = i === currentMonthIdx;
+          <>
+            {(() => {
+              let emDia = 0, atrasado = 0, pendente = 0, semRegistro = 0;
+              for (let i = 0; i <= currentMonthIdx; i++) {
+                const row = rowsByMonth.get(i + 1);
+                if (!row) { semRegistro++; continue; }
+                const s = HISTORICO_DB_TO_UI[row.status];
+                if (s === "Em dia") emDia++;
+                else if (s === "Atrasado") atrasado++;
+                else pendente++;
+              }
               return (
-                <div key={i} className={`rounded-xl border p-3 transition-all ${isCurrent ? "border-primary bg-primary/5" : isFuture ? "border-dashed border-border bg-secondary/30" : "border-border bg-card"}`}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {MONTH_NAMES_PT_SHORT[i]}
-                    </p>
-                    {isCurrent && (
-                      <span className="rounded-full bg-primary px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">
-                        Atual
-                      </span>
-                    )}
-                  </div>
-                  {isFuture ? (
-                    <p className="mt-3 text-[11px] italic text-muted-foreground">A faturar</p>
-                  ) : row && uiStatus ? (
-                    <Select value={uiStatus} onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
-                      <SelectTrigger className={`mt-2 h-8 w-full border-0 px-2 text-[11px] font-bold uppercase tracking-wider ${STATUS_STYLES[uiStatus]}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Em dia">Em dia (Pago)</SelectItem>
-                        <SelectItem value="Pendente">Pendente</SelectItem>
-                        <SelectItem value="Atrasado">Atrasado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Select value="" onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
-                      <SelectTrigger className="mt-2 h-8 w-full border border-dashed border-border bg-secondary/30 px-2 text-[11px] italic text-muted-foreground">
-                        <SelectValue placeholder="Sem registro" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Em dia">Em dia (Pago)</SelectItem>
-                        <SelectItem value="Pendente">Pendente</SelectItem>
-                        <SelectItem value="Atrasado">Atrasado</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
+                  <strong className="font-semibold">
+                    {emDia} de {currentMonthIdx + 1} {emDia === 1 ? "mês em dia" : "meses em dia"}
+                  </strong>
+                  {(atrasado > 0 || pendente > 0 || semRegistro > 0) && (
+                    <span className="text-xs text-muted-foreground">
+                      {atrasado > 0 && `· ${atrasado} ${atrasado === 1 ? "atrasado" : "atrasados"} `}
+                      {pendente > 0 && `· ${pendente} ${pendente === 1 ? "pendente" : "pendentes"} `}
+                      {semRegistro > 0 && `· ${semRegistro} sem registro`}
+                    </span>
                   )}
-
                 </div>
               );
-            })}
-          </div>
+            })()}
+
+            <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+              {Array.from({ length: 12 }).map((_, i) => {
+                const monthNum = i + 1;
+                const row = rowsByMonth.get(monthNum);
+                const uiStatus = row ? HISTORICO_DB_TO_UI[row.status] : null;
+                const isFuture = i > currentMonthIdx;
+                const isCurrent = i === currentMonthIdx;
+                const cardClass =
+                  !isFuture && uiStatus
+                    ? HEATMAP_CELL_STYLES[uiStatus]
+                    : "border border-dashed border-border bg-secondary/30 text-muted-foreground";
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-xl p-3 transition-all ${cardClass} ${isCurrent ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wider opacity-80">
+                        {MONTH_NAMES_PT_SHORT[i]}
+                      </p>
+                      {isCurrent && (
+                        <span className="rounded-full bg-primary px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">
+                          Atual
+                        </span>
+                      )}
+                    </div>
+                    {isFuture ? (
+                      <p className="mt-3 text-[11px] italic">A faturar</p>
+                    ) : uiStatus ? (
+                      <Select value={uiStatus} onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
+                        <SelectTrigger className="mt-2 h-8 w-full border-0 bg-transparent px-0 text-[11px] font-bold uppercase tracking-wide text-current shadow-none focus:ring-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Em dia">Em dia (Pago)</SelectItem>
+                          <SelectItem value="Pendente">Pendente</SelectItem>
+                          <SelectItem value="Atrasado">Atrasado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Select value="" onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
+                        <SelectTrigger className="mt-2 h-8 w-full border-0 bg-transparent px-0 text-[11px] italic text-muted-foreground shadow-none focus:ring-0">
+                          <SelectValue placeholder="Sem registro" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Em dia">Em dia (Pago)</SelectItem>
+                          <SelectItem value="Pendente">Pendente</SelectItem>
+                          <SelectItem value="Atrasado">Atrasado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-border pt-3">
+              {(["Em dia", "Atrasado", "Pendente"] as FinancialStatus[]).map((status) => (
+                <div key={status} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className={`h-2.5 w-2.5 rounded-sm ${HEATMAP_CELL_STYLES[status].split(" ")[0]}`} />
+                  {status}
+                </div>
+              ))}
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className="h-2.5 w-2.5 rounded-sm bg-secondary/50" />
+                A faturar
+              </div>
+            </div>
+          </>
         )}
 
         <div className="mt-4 rounded-lg border border-border bg-secondary/40 p-3 text-[11px] text-muted-foreground">
@@ -3901,25 +4034,31 @@ function EditMoradorDialog({
   onSaved: () => void;
 }) {
   const [nome, setNome] = useState("");
-  const [unidade, setUnidade] = useState("");
+  const [bloco, setBloco] = useState<"A" | "B">("A");
+  const [apartamento, setApartamento] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (morador) { setNome(morador.nome_completo); setUnidade(morador.unidade); }
+    if (morador) {
+      setNome(morador.nome_completo);
+      const [b, apto] = morador.unidade.split("-");
+      setBloco(b === "B" ? "B" : "A");
+      setApartamento(apto ?? "");
+    }
   }, [morador]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!morador) return;
-    if (!nome.trim() || !unidade.trim()) {
-      toast.error("Preencha nome e unidade.");
+    if (!nome.trim() || !apartamento.trim()) {
+      toast.error("Preencha nome e apartamento.");
       return;
     }
     setSaving(true);
     try {
       await atualizarMorador(morador.id, {
         nome_completo: nome.trim(),
-        unidade: unidade.trim(),
+        unidade: `${bloco}-${apartamento.trim()}`,
       });
       toast.success("Morador atualizado.");
       onOpenChange(false);
@@ -3944,9 +4083,21 @@ function EditMoradorDialog({
             <Label htmlFor="em-nome">Nome completo</Label>
             <Input id="em-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="em-un">Unidade</Label>
-            <Input id="em-un" value={unidade} onChange={(e) => setUnidade(e.target.value)} required />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="em-bloco">Bloco</Label>
+              <Select value={bloco} onValueChange={(v) => setBloco(v as "A" | "B")}>
+                <SelectTrigger id="em-bloco"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">A</SelectItem>
+                  <SelectItem value="B">B</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="em-apto">Apartamento</Label>
+              <Input id="em-apto" value={apartamento} onChange={(e) => setApartamento(e.target.value)} placeholder="Ex.: 301" required />
+            </div>
           </div>
           <Button type="submit" className="w-full rounded-full" disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
