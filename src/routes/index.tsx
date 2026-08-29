@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -179,6 +179,9 @@ import {
   verificarBloqueioLogin,
   registrarTentativaLogin,
   criarPauta,
+  fetchPautasEncerradas,
+  encerrarPauta,
+  excluirPauta,
   criarBloqueio,
   removerReserva,
   atualizarMorador,
@@ -557,38 +560,131 @@ function LoginDialog({
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void | Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const [mode, setMode] = useState<"login" | "recover" | "recover-sent">("login");
+  const [recoverEmail, setRecoverEmail] = useState("");
+
+  const handleOpenChange = (v: boolean) => {
+    onOpenChange(v);
+    if (!v) {
+      setMode("login");
+      setRecoverEmail("");
+    }
+  };
+
+  const submitRecover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await supabase.auth.resetPasswordForEmail(recoverEmail.trim(), {
+        redirectTo: `${window.location.origin}/redefinir-senha`,
+      });
+    } catch (err) {
+      console.error(err);
+      // Não revela ao usuário se o envio falhou por e-mail inexistente ou
+      // por erro real — mensagem genérica em ambos os casos (evita
+      // enumeração de usuários cadastrados).
+    } finally {
+      setSubmitting(false);
+      setMode("recover-sent");
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-display text-2xl">Portal do Morador</DialogTitle>
-          <DialogDescription>
-            Acesse com seu e-mail cadastrado para ver informações exclusivas.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          onSubmit={async (e) => {
-            setSubmitting(true);
-            try {
-              await onSubmit(e);
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-          className="mt-2 space-y-4"
-        >
-          <div>
-            <Label htmlFor="login-email">E-mail</Label>
-            <Input id="login-email" name="email" type="email" required className="mt-2 h-11" placeholder="voce@email.com" />
-          </div>
-          <div>
-            <Label htmlFor="login-password">Senha</Label>
-            <Input id="login-password" name="password" type="password" required className="mt-2 h-11" placeholder="••••••••" />
-          </div>
-          <Button type="submit" size="lg" className="w-full rounded-full" disabled={submitting}>
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />} Entrar
-          </Button>
-        </form>
+        {mode === "login" ? (
+          <Fragment key="login">
+            <DialogHeader>
+              <DialogTitle className="font-display text-2xl">Portal do Morador</DialogTitle>
+              <DialogDescription>
+                Acesse com seu e-mail cadastrado para ver informações exclusivas.
+              </DialogDescription>
+            </DialogHeader>
+            <form
+              onSubmit={async (e) => {
+                setSubmitting(true);
+                try {
+                  await onSubmit(e);
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              className="mt-2 space-y-4"
+            >
+              <div>
+                <Label htmlFor="login-email">E-mail</Label>
+                <Input id="login-email" name="email" type="email" required className="mt-2 h-11" placeholder="voce@email.com" />
+              </div>
+              <div>
+                <Label htmlFor="login-password">Senha</Label>
+                <Input id="login-password" name="password" type="password" required className="mt-2 h-11" placeholder="••••••••" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setMode("recover")}
+                className="cursor-pointer text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Esqueci minha senha
+              </button>
+              <Button type="submit" size="lg" className="w-full rounded-full" disabled={submitting}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />} Entrar
+              </Button>
+            </form>
+          </Fragment>
+        ) : mode === "recover" ? (
+          <Fragment key="recover">
+            <DialogHeader>
+              <DialogTitle className="font-display text-2xl">Recuperar senha</DialogTitle>
+              <DialogDescription>
+                Informe seu e-mail cadastrado. Se ele existir na nossa base, você recebe um
+                link pra criar uma nova senha.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={submitRecover} className="mt-2 space-y-4">
+              <div>
+                <Label htmlFor="recover-email">E-mail</Label>
+                <Input
+                  id="recover-email"
+                  type="email"
+                  required
+                  autoFocus
+                  value={recoverEmail}
+                  onChange={(e) => setRecoverEmail(e.target.value)}
+                  className="mt-2 h-11"
+                  placeholder="voce@email.com"
+                />
+              </div>
+              <Button type="submit" size="lg" className="w-full rounded-full" disabled={submitting}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Enviar link de recuperação
+              </Button>
+              <button
+                type="button"
+                onClick={() => setMode("login")}
+                className="w-full cursor-pointer text-center text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Voltar ao login
+              </button>
+            </form>
+          </Fragment>
+        ) : (
+          <Fragment key="recover-sent">
+            <DialogHeader>
+              <DialogTitle className="font-display text-2xl">Verifique seu e-mail</DialogTitle>
+              <DialogDescription>
+                Se <strong>{recoverEmail}</strong> estiver cadastrado, você vai receber um
+                link pra criar uma nova senha em instantes. Confira também a caixa de spam.
+              </DialogDescription>
+            </DialogHeader>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-2 w-full rounded-full"
+              onClick={() => setMode("login")}
+            >
+              Voltar ao login
+            </Button>
+          </Fragment>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -980,7 +1076,12 @@ function PublicLanding({ onOpenLogin }: { onOpenLogin: () => void }) {
             <Building2 className="h-4 w-4" />
             <span>© {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo</span>
           </div>
-          <p>Portal oficial de moradores</p>
+          <div className="flex items-center gap-4">
+            <Link to="/privacidade" className="underline-offset-2 hover:text-foreground hover:underline">
+              Política de Privacidade
+            </Link>
+            <p>Portal oficial de moradores</p>
+          </div>
         </div>
       </footer>
     </>
@@ -1456,8 +1557,13 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
       <ChamadosResidentSection profile={profile} />
 
       <footer className="border-t border-border bg-background py-8">
-        <div className="mx-auto max-w-7xl px-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo · Portal restrito a moradores
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-2 px-6 text-center text-sm text-muted-foreground">
+          <span>
+            © {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo · Portal restrito a moradores
+          </span>
+          <Link to="/privacidade" className="underline-offset-2 hover:text-foreground hover:underline">
+            Política de Privacidade
+          </Link>
         </div>
       </footer>
     </>
@@ -1618,7 +1724,11 @@ function compareUnidade(a: string, b: string) {
 function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [pautasLoading, setPautasLoading] = useState(true);
+  const [pautasEncerradas, setPautasEncerradas] = useState<PautaRow[]>([]);
+  const [pautasEncerradasLoading, setPautasEncerradasLoading] = useState(true);
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
+  const [encerrarPautaId, setEncerrarPautaId] = useState<string | null>(null);
+  const [deletePautaId, setDeletePautaId] = useState<string | null>(null);
 
   const [reservas, setReservas] = useState<ReservaComMorador[]>([]);
   const [reservasLoading, setReservasLoading] = useState(true);
@@ -1673,6 +1783,41 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
     finally { setPautasLoading(false); }
   }, [profile.condominio_id]);
 
+  const loadPautasEncerradas = useCallback(async () => {
+    setPautasEncerradasLoading(true);
+    try { setPautasEncerradas(await fetchPautasEncerradas(profile.condominio_id)); }
+    catch (e) { console.error(e); toast.error("Erro ao carregar histórico de votações."); }
+    finally { setPautasEncerradasLoading(false); }
+  }, [profile.condominio_id]);
+
+  const handleEncerrarPauta = async () => {
+    if (!encerrarPautaId) return;
+    try {
+      await encerrarPauta(encerrarPautaId);
+      toast.success("Votação finalizada.");
+      setEncerrarPautaId(null);
+      loadPautas();
+      loadPautasEncerradas();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao finalizar votação.");
+    }
+  };
+
+  const handleDeletePauta = async () => {
+    if (!deletePautaId) return;
+    try {
+      await excluirPauta(deletePautaId);
+      toast.success("Votação excluída.");
+      setDeletePautaId(null);
+      loadPautas();
+      loadPautasEncerradas();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao excluir votação.");
+    }
+  };
+
   const loadReservas = useCallback(async () => {
     setReservasLoading(true);
     try { setReservas(await fetchReservasDoCondominio(profile.condominio_id)); }
@@ -1712,8 +1857,8 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   }, [profile.condominio_id]);
 
   useEffect(() => {
-    loadPautas(); loadReservas(); loadFinanceiro(); loadObras();
-  }, [loadPautas, loadReservas, loadFinanceiro, loadObras]);
+    loadPautas(); loadPautasEncerradas(); loadReservas(); loadFinanceiro(); loadObras();
+  }, [loadPautas, loadPautasEncerradas, loadReservas, loadFinanceiro, loadObras]);
 
   const stats = useMemo(() => {
     const counts: Record<FinancialStatus, number> = { "Em dia": 0, Pendente: 0, Atrasado: 0 };
@@ -2063,22 +2208,52 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
           </div>
 
 
-          <div className="mt-8 space-y-4">
-            {pautasLoading ? (
-              <LoadingBlock label="Carregando pautas…" />
-            ) : pautas.length === 0 ? (
-              <EmptyState>Nenhuma pauta ativa no momento.</EmptyState>
-            ) : (
-              pautas.map((p) => (
-                <PollAdminCard
-                  key={p.id}
-                  pauta={p}
-                  expanded={expandedAudit === p.id}
-                  onToggleAudit={() => setExpandedAudit((cur) => (cur === p.id ? null : p.id))}
-                />
-              ))
-            )}
-          </div>
+          <Tabs defaultValue="ativas" className="mt-8">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-full bg-card p-1.5 shadow-[var(--shadow-soft)] sm:w-auto sm:flex-nowrap">
+              <TabsTrigger value="ativas" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">Ativas</TabsTrigger>
+              <TabsTrigger value="encerradas" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">
+                <History className="h-3.5 w-3.5" /> Encerradas
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="ativas" className="mt-6 space-y-4">
+              {pautasLoading ? (
+                <LoadingBlock label="Carregando pautas…" />
+              ) : pautas.length === 0 ? (
+                <EmptyState>Nenhuma pauta ativa no momento.</EmptyState>
+              ) : (
+                pautas.map((p) => (
+                  <PollAdminCard
+                    key={p.id}
+                    pauta={p}
+                    expanded={expandedAudit === p.id}
+                    onToggleAudit={() => setExpandedAudit((cur) => (cur === p.id ? null : p.id))}
+                    onFinalize={() => setEncerrarPautaId(p.id)}
+                    onDelete={() => setDeletePautaId(p.id)}
+                  />
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="encerradas" className="mt-6 space-y-4">
+              {pautasEncerradasLoading ? (
+                <LoadingBlock label="Carregando histórico…" />
+              ) : pautasEncerradas.length === 0 ? (
+                <EmptyState>Nenhuma votação encerrada ainda.</EmptyState>
+              ) : (
+                pautasEncerradas.map((p) => (
+                  <PollAdminCard
+                    key={p.id}
+                    pauta={p}
+                    expanded={expandedAudit === p.id}
+                    onToggleAudit={() => setExpandedAudit((cur) => (cur === p.id ? null : p.id))}
+                    onDelete={() => setDeletePautaId(p.id)}
+                    encerrada
+                  />
+                ))
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </section>
 
@@ -2159,8 +2334,13 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
       <LandingConfigSection condominioId={profile.condominio_id} />
 
       <footer className="border-t border-border bg-background py-8">
-        <div className="mx-auto max-w-7xl px-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo · Painel administrativo
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-2 px-6 text-center text-sm text-muted-foreground">
+          <span>
+            © {new Date().getFullYear()} Portal Condomínio Residencial Miguel Arcanjo · Painel administrativo
+          </span>
+          <Link to="/privacidade" className="underline-offset-2 hover:text-foreground hover:underline">
+            Política de Privacidade
+          </Link>
         </div>
       </footer>
 
@@ -2203,6 +2383,16 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         open={deleteMoradorId !== null}
         onOpenChange={(v) => { if (!v) setDeleteMoradorId(null); }}
         onConfirm={handleDeleteMorador}
+      />
+      <ConfirmEncerrarPautaDialog
+        open={encerrarPautaId !== null}
+        onOpenChange={(v) => { if (!v) setEncerrarPautaId(null); }}
+        onConfirm={handleEncerrarPauta}
+      />
+      <ConfirmDeletePautaDialog
+        open={deletePautaId !== null}
+        onOpenChange={(v) => { if (!v) setDeletePautaId(null); }}
+        onConfirm={handleDeletePauta}
       />
     </>
   );
@@ -2485,10 +2675,16 @@ function PollAdminCard({
   pauta,
   expanded,
   onToggleAudit,
+  onFinalize,
+  onDelete,
+  encerrada = false,
 }: {
   pauta: PautaRow;
   expanded: boolean;
   onToggleAudit: () => void;
+  onFinalize?: () => void;
+  onDelete: () => void;
+  encerrada?: boolean;
 }) {
   const [votos, setVotos] = useState<VotoDetail[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2517,7 +2713,14 @@ function PollAdminCard({
     <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-medium leading-snug">{pauta.titulo}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium leading-snug">{pauta.titulo}</p>
+            {encerrada && (
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Encerrada
+              </span>
+            )}
+          </div>
           {pauta.descricao && <p className="mt-1 text-xs text-muted-foreground">{pauta.descricao}</p>}
         </div>
         <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
@@ -2540,16 +2743,26 @@ function PollAdminCard({
           <Progress value={noPct} className="h-2.5 bg-secondary [&>div]:bg-destructive" />
         </div>
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
           Participação: <strong className="text-foreground">{total}</strong>{" "}
           {total === 1 ? "morador" : "moradores"}
         </p>
-        <Button type="button" size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={onToggleAudit} aria-expanded={expanded}>
-          <Search className="h-3.5 w-3.5" />
-          {expanded ? "Ocultar auditoria" : "Auditar votação"}
-          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onFinalize && (
+            <Button type="button" size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={onFinalize}>
+              <CheckCircle2 className="h-3.5 w-3.5" /> Finalizar
+            </Button>
+          )}
+          <Button type="button" size="sm" variant="outline" className="h-8 rounded-full text-xs text-destructive hover:text-destructive" onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5" /> Excluir
+          </Button>
+          <Button type="button" size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={onToggleAudit} aria-expanded={expanded}>
+            <Search className="h-3.5 w-3.5" />
+            {expanded ? "Ocultar auditoria" : "Auditar votação"}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+          </Button>
+        </div>
       </div>
 
       {expanded && (
@@ -4125,6 +4338,67 @@ function ConfirmDeleteMoradorDialog({
           <DialogTitle className="font-display text-2xl">Excluir morador</DialogTitle>
           <DialogDescription>
             Tem certeza que deseja remover este morador? Esta ação não pode ser desfeita.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" className="rounded-full" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onConfirm}>
+            <Trash2 className="h-4 w-4" /> Excluir
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfirmEncerrarPautaDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Finalizar votação</DialogTitle>
+          <DialogDescription>
+            Tem certeza que deseja encerrar esta votação antes da data prevista? Os moradores não
+            poderão mais votar e o resultado atual será considerado final. Esta ação não pode ser
+            desfeita.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" className="rounded-full" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button className="rounded-full" onClick={onConfirm}>
+            <CheckCircle2 className="h-4 w-4" /> Finalizar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfirmDeletePautaDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Excluir votação</DialogTitle>
+          <DialogDescription>
+            Tem certeza que deseja excluir esta votação? Todos os votos registrados nela serão
+            apagados permanentemente. Esta ação não pode ser desfeita.
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-end gap-2">

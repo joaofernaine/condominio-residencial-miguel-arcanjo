@@ -492,6 +492,32 @@ export async function criarPauta(input: {
   if (error) throw error;
 }
 
+export async function fetchPautasEncerradas(condominioId: string) {
+  const { data, error } = await supabase
+    .from("pautas")
+    .select("*")
+    .eq("condominio_id", condominioId)
+    .eq("status", "encerrada")
+    .order("data_fim", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as PautaRow[];
+}
+
+export async function encerrarPauta(pautaId: string) {
+  const { error } = await supabase
+    .from("pautas")
+    .update({ status: "encerrada", data_fim: new Date().toISOString().slice(0, 10) })
+    .eq("id", pautaId);
+  if (error) throw error;
+}
+
+export async function excluirPauta(pautaId: string) {
+  const { error: votosError } = await supabase.from("votos").delete().eq("pauta_id", pautaId);
+  if (votosError) throw votosError;
+  const { error } = await supabase.from("pautas").delete().eq("id", pautaId);
+  if (error) throw error;
+}
+
 
 // ---------- DOCUMENTOS ----------
 
