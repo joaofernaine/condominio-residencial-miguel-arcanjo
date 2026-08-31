@@ -9,6 +9,35 @@ import type { FinancialStatus, ReservationStatus } from "@/lib/mocks";
 
 export type Role = "sindica" | "morador" | "admin_agencia" | "zelador";
 
+export type Permissao =
+  | "ver_financeiro"
+  | "editar_financeiro"
+  | "gerenciar_moradores"
+  | "excluir_morador"
+  | "gerenciar_obras"
+  | "gerenciar_votacoes"
+  | "publicar_avisos"
+  | "moderar_classificados"
+  | "responder_chamados"
+  | "aprovar_visitantes"
+  | "aprovar_reservas"
+  | "cadastrar_funcionario";
+
+export const PERMISSOES_DISPONIVEIS: { id: Permissao; label: string }[] = [
+  { id: "ver_financeiro", label: "Ver financeiro" },
+  { id: "editar_financeiro", label: "Editar financeiro (importar relatório, marcar pago)" },
+  { id: "gerenciar_moradores", label: "Cadastrar/editar morador" },
+  { id: "excluir_morador", label: "Excluir morador" },
+  { id: "gerenciar_obras", label: "Gerenciar obras" },
+  { id: "gerenciar_votacoes", label: "Gerenciar votações" },
+  { id: "publicar_avisos", label: "Publicar avisos e configurar a landing (amenidades, sobre)" },
+  { id: "moderar_classificados", label: "Moderar classificados" },
+  { id: "responder_chamados", label: "Responder/fechar chamados" },
+  { id: "aprovar_visitantes", label: "Aprovar/recusar visitantes" },
+  { id: "aprovar_reservas", label: "Aprovar/recusar reservas" },
+  { id: "cadastrar_funcionario", label: "Cadastrar funcionário" },
+];
+
 export type Profile = {
   id: string;
   auth_user_id: string;
@@ -17,6 +46,8 @@ export type Profile = {
   unidade: string;
   role: Role;
   primeiro_acesso: boolean;
+  titulo_funcao: string | null;
+  permissoes: Permissao[];
 };
 
 export type PautaRow = {
@@ -119,11 +150,45 @@ export const RESERVATION_SPACES = [
 export async function fetchProfileByAuthUser(authUserId: string) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("*")
+    .select("*, profile_permissoes(permissao)")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
   if (error) throw error;
-  return data as Profile | null;
+  if (!data) return null;
+  const { profile_permissoes, ...rest } = data as unknown as Profile & {
+    profile_permissoes: { permissao: Permissao }[] | null;
+  };
+  return { ...rest, permissoes: (profile_permissoes ?? []).map((p) => p.permissao) } as Profile;
+}
+
+export async function fetchPermissoesDoProfile(profileId: string) {
+  const { data, error } = await supabase
+    .from("profile_permissoes")
+    .select("permissao")
+    .eq("profile_id", profileId);
+  if (error) throw error;
+  return (data ?? []).map((p) => p.permissao as Permissao);
+}
+
+export async function definirPermissoes(profileId: string, permissoes: Permissao[], tituloFuncao: string | null) {
+  const { error: updErr } = await supabase
+    .from("profiles")
+    .update({ titulo_funcao: tituloFuncao })
+    .eq("id", profileId);
+  if (updErr) throw updErr;
+
+  const { error: delErr } = await supabase
+    .from("profile_permissoes")
+    .delete()
+    .eq("profile_id", profileId);
+  if (delErr) throw delErr;
+
+  if (permissoes.length > 0) {
+    const { error: insErr } = await supabase
+      .from("profile_permissoes")
+      .insert(permissoes.map((permissao) => ({ profile_id: profileId, permissao })));
+    if (insErr) throw insErr;
+  }
 }
 
 export async function markFirstAccessComplete(authUserId: string) {
@@ -319,11 +384,18 @@ export async function criarHistorico(input: {
 export async function fetchMoradoresDoCondominio(condominioId: string) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, nome_completo, unidade, role")
+    .select("id, nome_completo, unidade, role, titulo_funcao, profile_permissoes(permissao)")
     .eq("condominio_id", condominioId)
     .eq("role", "morador");
   if (error) throw error;
-  return (data ?? []) as { id: string; nome_completo: string; unidade: string; role: Role }[];
+  return (data ?? []).map((m) => ({
+    id: m.id,
+    nome_completo: m.nome_completo,
+    unidade: m.unidade,
+    role: m.role as Role,
+    titulo_funcao: m.titulo_funcao as string | null,
+    permissoes: ((m.profile_permissoes ?? []) as { permissao: Permissao }[]).map((p) => p.permissao),
+  }));
 }
 
 export async function atualizarMorador(
@@ -343,10 +415,10 @@ export async function removerMorador(id: string) {
   if (error) throw error;
 }
 
-export async function promoverAdminAgencia(id: string) {
+export async function promoverPara(id: string, novoRole: "sindica" | "admin_agencia") {
   const { error } = await supabase
     .from("profiles")
-    .update({ role: "admin_agencia" })
+    .update({ role: novoRole })
     .eq("id", id)
     .eq("role", "morador");
   if (error) throw error;
@@ -459,12 +531,16 @@ export async function criarFuncionario(input: {
   condominio_id: string;
   nome_completo: string;
   email: string;
+  titulo_funcao?: string;
+  permissoes?: Permissao[];
 }) {
   const { data, error } = await supabase.functions.invoke("criar-funcionario", {
     body: {
       email: input.email,
       nome_completo: input.nome_completo,
       condominio_id: input.condominio_id,
+      titulo_funcao: input.titulo_funcao,
+      permissoes: input.permissoes,
     },
   });
   if (error) throw error;

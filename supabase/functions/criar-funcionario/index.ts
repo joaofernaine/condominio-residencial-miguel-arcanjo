@@ -35,11 +35,21 @@ Deno.serve(async (req) => {
       return json({ error: "Não autenticado." }, 401);
     }
 
-    const { email, nome_completo, condominio_id } = await req.json();
+    const { email, nome_completo, condominio_id, titulo_funcao, permissoes } =
+      await req.json();
 
     if (!email || !nome_completo || !condominio_id) {
       return json({ error: "Campos obrigatórios ausentes." }, 400);
     }
+
+    const permissoesValidas = [
+      "ver_financeiro", "editar_financeiro", "gerenciar_moradores", "excluir_morador",
+      "gerenciar_obras", "gerenciar_votacoes", "publicar_avisos", "moderar_classificados",
+      "responder_chamados", "aprovar_visitantes", "aprovar_reservas", "cadastrar_funcionario",
+    ];
+    const permissoesLimpa: string[] = Array.isArray(permissoes)
+      ? permissoes.filter((p) => permissoesValidas.includes(p))
+      : [];
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -61,11 +71,23 @@ Deno.serve(async (req) => {
       .eq("auth_user_id", authData.user.id)
       .maybeSingle();
 
+    let callerTemPermissao = false;
+    if (
+      callerProfile &&
+      !["sindica", "admin_agencia"].includes(callerProfile.role) &&
+      callerProfile.condominio_id === condominio_id
+    ) {
+      const { data: podeCadastrar } = await caller.rpc("has_permissao", {
+        p_permissao: "cadastrar_funcionario",
+      });
+      callerTemPermissao = podeCadastrar === true;
+    }
+
     if (
       profileErr ||
       !callerProfile ||
-      !["sindica", "admin_agencia"].includes(callerProfile.role) ||
-      callerProfile.condominio_id !== condominio_id
+      callerProfile.condominio_id !== condominio_id ||
+      !(["sindica", "admin_agencia"].includes(callerProfile.role) || callerTemPermissao)
     ) {
       return json({ error: "Sem permissão para esta operação." }, 403);
     }
@@ -100,20 +122,33 @@ Deno.serve(async (req) => {
       unidade: null,
       condominio_id,
       role: "zelador" as const,
+      titulo_funcao: titulo_funcao || null,
       primeiro_acesso: true,
     };
 
+    let profileId: string;
     if (existing) {
       const { error: updErr } = await admin
         .from("profiles")
         .update(patch)
         .eq("auth_user_id", authUserId);
       if (updErr) return json({ error: updErr.message }, 400);
+      profileId = existing.id;
     } else {
-      const { error: insErr } = await admin
+      const { data: inserted, error: insErr } = await admin
         .from("profiles")
-        .insert({ ...patch, auth_user_id: authUserId });
-      if (insErr) return json({ error: insErr.message }, 400);
+        .insert({ ...patch, auth_user_id: authUserId })
+        .select("id")
+        .single();
+      if (insErr || !inserted) return json({ error: insErr?.message ?? "Falha ao criar profile." }, 400);
+      profileId = inserted.id;
+    }
+
+    if (permissoesLimpa.length > 0) {
+      const { error: permErr } = await admin
+        .from("profile_permissoes")
+        .insert(permissoesLimpa.map((permissao) => ({ profile_id: profileId, permissao })));
+      if (permErr) return json({ error: permErr.message }, 400);
     }
 
     return json({ success: true });

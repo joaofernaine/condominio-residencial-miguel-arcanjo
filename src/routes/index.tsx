@@ -107,6 +107,7 @@ import { MensagensExternasAdminSection } from "@/components/mensagens-externas-a
 import { AdminPendenciasBadge } from "@/components/admin-pendencias-badge";
 import { ImportarRelatorioDialog } from "@/components/importar-relatorio-dialog";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Shield,
   Waves,
@@ -138,6 +139,10 @@ import {
 import {
   type Profile,
   type PautaRow,
+  type Permissao,
+  PERMISSOES_DISPONIVEIS,
+  definirPermissoes,
+  fetchPermissoesDoProfile,
   type ReservaRow,
   type ReservaComMorador,
   type HistoricoRow,
@@ -186,7 +191,7 @@ import {
   criarBloqueio,
   removerReserva,
   atualizarMorador,
-  promoverAdminAgencia,
+  promoverPara,
   removerMorador,
   fetchOcupacoesCondominio,
   criarHistorico,
@@ -539,6 +544,8 @@ function Index() {
           <AgencyAdminView profile={profile} onLogout={handleLogout} />
         ) : profile.role === "zelador" ? (
           <ZeladorDashboard profile={profile} onLogout={handleLogout} />
+        ) : profile.permissoes.length > 0 ? (
+          <PermissionedMoradorView profile={profile} onLogout={handleLogout} />
         ) : (
           <ResidentDashboard profile={profile} onLogout={handleLogout} />
         )
@@ -815,6 +822,122 @@ function FirstAccessDialog({
 
 // ================== AGENCY ADMIN (toggle Síndica ⇄ Morador) ==================
 
+function PermissionedMoradorView({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+  const [view, setView] = useState<"morador" | "funcao">("funcao");
+
+  const toggle = (
+    <div className="inline-flex items-center overflow-hidden rounded-full border border-input bg-background shadow-sm">
+      <button
+        type="button"
+        onClick={() => setView("funcao")}
+        className={`px-3 py-1.5 text-xs font-medium transition ${
+          view === "funcao" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+        }`}
+      >
+        {profile.titulo_funcao || "Função"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setView("morador")}
+        className={`px-3 py-1.5 text-xs font-medium transition ${
+          view === "morador" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+        }`}
+      >
+        Visão Morador
+      </button>
+    </div>
+  );
+
+  return view === "morador" ? (
+    <ResidentDashboard profile={profile} onLogout={onLogout} adminAgenciaToggle={toggle} />
+  ) : (
+    <PermissionedAdminView profile={profile} onLogout={onLogout} toggle={toggle} />
+  );
+}
+
+function PermissionedAdminView({ profile, onLogout, toggle }: { profile: Profile; onLogout: () => void; toggle: ReactNode }) {
+  const perms = new Set(profile.permissoes);
+  const [reservas, setReservas] = useState<ReservaComMorador[]>([]);
+  const [reservasLoading, setReservasLoading] = useState(true);
+
+  const loadReservas = useCallback(async () => {
+    setReservasLoading(true);
+    try { setReservas(await fetchReservasDoCondominio(profile.condominio_id)); }
+    catch (e) { console.error(e); toast.error("Erro ao carregar reservas."); }
+    finally { setReservasLoading(false); }
+  }, [profile.condominio_id]);
+
+  useEffect(() => { if (perms.has("aprovar_reservas")) loadReservas(); }, [loadReservas]);
+
+  const handleApprove = async (id: string) => {
+    try { await aprovarReserva(id); toast.success("Reserva aprovada."); loadReservas(); }
+    catch (e) { console.error(e); toast.error("Erro ao aprovar reserva."); }
+  };
+  const handleReject = async (id: string, motivo: string) => {
+    try { await recusarReserva(id, motivo); toast.success("Reserva recusada."); loadReservas(); }
+    catch (e) { console.error(e); toast.error("Erro ao recusar reserva."); }
+  };
+
+  return (
+    <>
+      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
+        <nav className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Building2 className="h-6 w-6 shrink-0 text-primary" />
+            <span className="font-display truncate text-base font-semibold tracking-tight sm:text-lg">
+              <span className="sm:hidden">Cond. M. Arcanjo</span>
+              <span className="hidden sm:inline">Condomínio Residencial Miguel Arcanjo</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--gold)]/20 px-2.5 py-0.5 text-xs font-semibold text-[color:var(--gold)]">
+              <ShieldCheck className="h-3 w-3" /> {profile.titulo_funcao || "Função"}
+            </span>
+          </div>
+          <div className="flex items-center justify-end gap-2 sm:gap-3">
+            <span className="hidden text-sm font-medium capitalize sm:inline">{profile.nome_completo}</span>
+            {toggle}
+            <Button onClick={onLogout} variant="outline" size="sm" className="shrink-0 rounded-full">
+              <LogOut className="h-4 w-4" /> Sair
+            </Button>
+          </div>
+        </nav>
+      </header>
+
+      {!perms.size && (
+        <div className="mx-auto max-w-7xl px-6 py-16">
+          <EmptyState>Nenhuma permissão administrativa concedida ainda.</EmptyState>
+        </div>
+      )}
+
+      {perms.has("aprovar_visitantes") && (
+        <VisitantesAdminSection condominioId={profile.condominio_id} />
+      )}
+
+      {perms.has("aprovar_reservas") && (
+        <ReservationsManagement
+          reservas={reservas}
+          loading={reservasLoading}
+          onApprove={handleApprove}
+          onReject={handleReject}
+        />
+      )}
+
+      {perms.has("responder_chamados") && (
+        <ChamadosAdminSection condominioId={profile.condominio_id} />
+      )}
+
+      {perms.has("moderar_classificados") && (
+        <div id="admin-classificados">
+          <ClassificadosAdminSection condominioId={profile.condominio_id} />
+        </div>
+      )}
+
+      {perms.has("publicar_avisos") && (
+        <LandingConfigSection condominioId={profile.condominio_id} />
+      )}
+    </>
+  );
+}
+
 function AgencyAdminView({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
   const [adminView, setAdminView] = useState<"sindica" | "morador">("sindica");
   const sindicaProfile = useMemo<Profile>(() => ({ ...profile, role: "sindica" }), [profile]);
@@ -848,7 +971,7 @@ function AgencyAdminView({ profile, onLogout }: { profile: Profile; onLogout: ()
   );
 
   return adminView === "sindica" ? (
-    <AdminDashboard profile={sindicaProfile} onLogout={onLogout} adminAgenciaToggle={toggle} />
+    <AdminDashboard profile={sindicaProfile} onLogout={onLogout} adminAgenciaToggle={toggle} isAdminAgencia />
   ) : (
     <ResidentDashboard profile={moradorProfile} onLogout={onLogout} adminAgenciaToggle={toggle} />
   );
@@ -1712,7 +1835,7 @@ const STATUS_STYLES: Record<FinancialStatus, string> = {
   Atrasado: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
-type MoradorInfo = { id: string; nome_completo: string; unidade: string };
+type MoradorInfo = { id: string; nome_completo: string; unidade: string; titulo_funcao?: string | null; permissoes?: Permissao[] };
 
 function parseUnidade(unidade: string): { bloco: string; numero: number } {
   const [bloco, numero] = unidade.split("-");
@@ -1783,7 +1906,7 @@ function ZeladorDashboard({ profile, onLogout }: { profile: Profile; onLogout: (
   );
 }
 
-function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode }) {
+function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia = false }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode; isAdminAgencia?: boolean }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [pautasLoading, setPautasLoading] = useState(true);
   const [pautasEncerradas, setPautasEncerradas] = useState<PautaRow[]>([]);
@@ -1817,6 +1940,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const [editMorador, setEditMorador] = useState<MoradorInfo | null>(null);
   const [deleteMoradorId, setDeleteMoradorId] = useState<string | null>(null);
   const [promoteMoradorId, setPromoteMoradorId] = useState<string | null>(null);
+  const [funcaoMorador, setFuncaoMorador] = useState<MoradorInfo | null>(null);
   const [openBlocos, setOpenBlocos] = useState<Set<string>>(new Set());
 
   const moradoresPorBloco = useMemo(() => {
@@ -2010,11 +2134,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
     }
   };
 
-  const handlePromoteMorador = async () => {
+  const handlePromoteMorador = async (novoRole: "sindica" | "admin_agencia") => {
     if (!promoteMoradorId) return;
     try {
-      await promoverAdminAgencia(promoteMoradorId);
-      toast.success("Morador promovido a administradora.");
+      await promoverPara(promoteMoradorId, novoRole);
+      toast.success(novoRole === "sindica" ? "Morador promovido a síndica." : "Morador promovido a administradora.");
       setPromoteMoradorId(null);
       loadFinanceiro();
     } catch (e) {
@@ -2162,7 +2286,14 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <p className="font-mono text-sm font-semibold">{m.unidade}</p>
-                                    <p className="mt-0.5 truncate text-sm text-muted-foreground">{m.nome_completo}</p>
+                                    <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                                      {m.nome_completo}
+                                      {m.titulo_funcao && (
+                                        <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
+                                          {m.titulo_funcao}
+                                        </span>
+                                      )}
+                                    </p>
                                   </div>
                                   <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
                                     {uiStatus}
@@ -2175,9 +2306,14 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                                   <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
                                     <Pencil className="h-3.5 w-3.5" /> Editar
                                   </Button>
-                                  <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
-                                    <ShieldCheck className="h-3.5 w-3.5" /> Promover a administradora
+                                  <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setFuncaoMorador(m)}>
+                                    <ShieldCheck className="h-3.5 w-3.5" /> Gerenciar função
                                   </Button>
+                                  {isAdminAgencia && (
+                                    <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
+                                      <ShieldCheck className="h-3.5 w-3.5" /> Promover
+                                    </Button>
+                                  )}
                                   <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
                                     <Trash2 className="h-3.5 w-3.5" /> Excluir
                                   </Button>
@@ -2230,7 +2366,14 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                               return (
                                 <TableRow key={m.id} onClick={() => setHistoryUnitId(m.id)} className="cursor-pointer">
                                   <TableCell className="font-mono font-semibold">{m.unidade}</TableCell>
-                                  <TableCell>{m.nome_completo}</TableCell>
+                                  <TableCell>
+                                    {m.nome_completo}
+                                    {m.titulo_funcao && (
+                                      <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
+                                        {m.titulo_funcao}
+                                      </span>
+                                    )}
+                                  </TableCell>
                                   <TableCell>
                                     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
                                       {uiStatus}
@@ -2244,9 +2387,14 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                                       <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
                                         <Pencil className="h-3.5 w-3.5" /> Editar
                                       </Button>
-                                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
-                                        <ShieldCheck className="h-3.5 w-3.5" /> Promover a administradora
+                                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setFuncaoMorador(m)}>
+                                        <ShieldCheck className="h-3.5 w-3.5" /> Gerenciar função
                                       </Button>
+                                      {isAdminAgencia && (
+                                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
+                                          <ShieldCheck className="h-3.5 w-3.5" /> Promover
+                                        </Button>
+                                      )}
                                       <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
                                         <Trash2 className="h-3.5 w-3.5" /> Excluir
                                       </Button>
@@ -2480,6 +2628,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         onOpenChange={(v) => { if (!v) setPromoteMoradorId(null); }}
         onConfirm={handlePromoteMorador}
       />
+      <FuncaoPermissoesDialog
+        morador={funcaoMorador}
+        onOpenChange={(v) => { if (!v) setFuncaoMorador(null); }}
+        onSaved={loadFinanceiro}
+      />
       <ConfirmEncerrarPautaDialog
         open={encerrarPautaId !== null}
         onOpenChange={(v) => { if (!v) setEncerrarPautaId(null); }}
@@ -2599,9 +2752,20 @@ function NewFuncionarioDialog({
 }) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
+  const [tituloFuncao, setTituloFuncao] = useState("");
+  const [selecionadas, setSelecionadas] = useState<Set<Permissao>>(new Set());
   const [saving, setSaving] = useState(false);
 
-  const reset = () => { setNome(""); setEmail(""); };
+  const reset = () => { setNome(""); setEmail(""); setTituloFuncao(""); setSelecionadas(new Set()); };
+
+  const toggle = (perm: Permissao, checked: boolean) => {
+    setSelecionadas((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(perm);
+      else next.delete(perm);
+      return next;
+    });
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2615,6 +2779,8 @@ function NewFuncionarioDialog({
         condominio_id: condominioId,
         nome_completo: nome.trim(),
         email: email.trim(),
+        titulo_funcao: tituloFuncao.trim() || undefined,
+        permissoes: Array.from(selecionadas),
       });
       toast.success("Funcionário cadastrado! Senha provisória: Mudar@123");
       reset();
@@ -2631,12 +2797,12 @@ function NewFuncionarioDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">Cadastrar funcionário</DialogTitle>
           <DialogDescription>
-            Acesso restrito a aprovar/recusar visitantes e reservas (ex.: zelador, porteiro). Uma
-            conta será criada com senha provisória <strong>Mudar@123</strong>.
+            Acesso restrito só ao que for marcado abaixo (ex.: zelador, porteiro). Uma conta será
+            criada com senha provisória <strong>Mudar@123</strong>.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -2647,6 +2813,21 @@ function NewFuncionarioDialog({
           <div className="space-y-2">
             <Label htmlFor="nf-email">Email</Label>
             <Input id="nf-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nf-funcao">Função (aparece como badge, ex.: Zelador)</Label>
+            <Input id="nf-funcao" value={tituloFuncao} onChange={(e) => setTituloFuncao(e.target.value)} placeholder="Ex.: Zelador" />
+          </div>
+          <div className="space-y-2">
+            <Label>Permissões</Label>
+            <div className="grid gap-2.5 rounded-xl border border-border p-3">
+              {PERMISSOES_DISPONIVEIS.map((p) => (
+                <label key={p.id} className="flex cursor-pointer items-center gap-2.5 text-sm">
+                  <Checkbox checked={selecionadas.has(p.id)} onCheckedChange={(v) => toggle(p.id, v === true)} />
+                  {p.label}
+                </label>
+              ))}
+            </div>
           </div>
           <Button type="submit" className="w-full rounded-full" disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -4528,25 +4709,125 @@ function ConfirmPromoteMoradorDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onConfirm: () => void;
+  onConfirm: (novoRole: "sindica" | "admin_agencia") => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl">Promover a administradora</DialogTitle>
+          <DialogTitle className="font-display text-2xl">Promover morador</DialogTitle>
           <DialogDescription>
-            Tem certeza que deseja promover este morador a administradora (admin_agencia)? Ela
-            passará a ter acesso total ao painel administrativo, além de continuar podendo usar o
-            portal como moradora.
+            Escolha o novo papel. Síndica tem acesso total ao painel, exceto promover outras
+            pessoas a síndica/administradora — isso continua exclusivo seu. Administradora tem o
+            mesmo poder que você, incluindo promover outras pessoas.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" className="rounded-full" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="rounded-full" onClick={onConfirm}>
-            <ShieldCheck className="h-4 w-4" /> Promover
+          <Button variant="outline" className="rounded-full" onClick={() => onConfirm("sindica")}>
+            <ShieldCheck className="h-4 w-4" /> Promover a síndica
+          </Button>
+          <Button className="rounded-full" onClick={() => onConfirm("admin_agencia")}>
+            <ShieldCheck className="h-4 w-4" /> Promover a administradora
           </Button>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FuncaoPermissoesDialog({
+  morador,
+  onOpenChange,
+  onSaved,
+}: {
+  morador: MoradorInfo | null;
+  onOpenChange: (v: boolean) => void;
+  onSaved: () => void;
+}) {
+  const [tituloFuncao, setTituloFuncao] = useState("");
+  const [selecionadas, setSelecionadas] = useState<Set<Permissao>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!morador) return;
+    setTituloFuncao(morador.titulo_funcao ?? "");
+    setLoading(true);
+    fetchPermissoesDoProfile(morador.id)
+      .then((perms) => setSelecionadas(new Set(perms)))
+      .catch((e) => { console.error(e); toast.error("Erro ao carregar permissões."); })
+      .finally(() => setLoading(false));
+  }, [morador]);
+
+  const toggle = (perm: Permissao, checked: boolean) => {
+    setSelecionadas((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(perm);
+      else next.delete(perm);
+      return next;
+    });
+  };
+
+  const submit = async () => {
+    if (!morador) return;
+    setSaving(true);
+    try {
+      await definirPermissoes(morador.id, Array.from(selecionadas), tituloFuncao.trim() || null);
+      toast.success("Função e permissões atualizadas.");
+      onOpenChange(false);
+      onSaved();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao salvar permissões.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={morador !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Gerenciar função</DialogTitle>
+          <DialogDescription>
+            {morador?.nome_completo} continua morador — as permissões abaixo dão acesso extra,
+            sem virar síndica/admin de verdade.
+          </DialogDescription>
+        </DialogHeader>
+        {loading ? (
+          <LoadingBlock />
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="fp-titulo">Título da função (aparece como badge, ex.: Subsíndica)</Label>
+              <Input
+                id="fp-titulo"
+                value={tituloFuncao}
+                onChange={(e) => setTituloFuncao(e.target.value)}
+                placeholder="Ex.: Subsíndica"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Permissões</Label>
+              <div className="grid gap-2.5 rounded-xl border border-border p-3">
+                {PERMISSOES_DISPONIVEIS.map((p) => (
+                  <label key={p.id} className="flex cursor-pointer items-center gap-2.5 text-sm">
+                    <Checkbox
+                      checked={selecionadas.has(p.id)}
+                      onCheckedChange={(v) => toggle(p.id, v === true)}
+                    />
+                    {p.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <Button onClick={submit} disabled={saving} className="w-full rounded-full">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              Salvar
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
