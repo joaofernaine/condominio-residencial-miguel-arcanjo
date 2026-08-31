@@ -185,6 +185,7 @@ import {
   criarBloqueio,
   removerReserva,
   atualizarMorador,
+  promoverAdminAgencia,
   removerMorador,
   fetchOcupacoesCondominio,
   criarHistorico,
@@ -1753,6 +1754,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const [blockOpen, setBlockOpen] = useState(false);
   const [editMorador, setEditMorador] = useState<MoradorInfo | null>(null);
   const [deleteMoradorId, setDeleteMoradorId] = useState<string | null>(null);
+  const [promoteMoradorId, setPromoteMoradorId] = useState<string | null>(null);
   const [openBlocos, setOpenBlocos] = useState<Set<string>>(new Set());
 
   const moradoresPorBloco = useMemo(() => {
@@ -1946,6 +1948,19 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
     }
   };
 
+  const handlePromoteMorador = async () => {
+    if (!promoteMoradorId) return;
+    try {
+      await promoverAdminAgencia(promoteMoradorId);
+      toast.success("Morador promovido a administradora.");
+      setPromoteMoradorId(null);
+      loadFinanceiro();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao promover morador.");
+    }
+  };
+
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
@@ -2095,6 +2110,9 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                                   <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
                                     <Pencil className="h-3.5 w-3.5" /> Editar
                                   </Button>
+                                  <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
+                                    <ShieldCheck className="h-3.5 w-3.5" /> Promover a administradora
+                                  </Button>
                                   <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
                                     <Trash2 className="h-3.5 w-3.5" /> Excluir
                                   </Button>
@@ -2160,6 +2178,9 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
                                       </Button>
                                       <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
                                         <Pencil className="h-3.5 w-3.5" /> Editar
+                                      </Button>
+                                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
+                                        <ShieldCheck className="h-3.5 w-3.5" /> Promover a administradora
                                       </Button>
                                       <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
                                         <Trash2 className="h-3.5 w-3.5" /> Excluir
@@ -2383,6 +2404,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         open={deleteMoradorId !== null}
         onOpenChange={(v) => { if (!v) setDeleteMoradorId(null); }}
         onConfirm={handleDeleteMorador}
+      />
+      <ConfirmPromoteMoradorDialog
+        open={promoteMoradorId !== null}
+        onOpenChange={(v) => { if (!v) setPromoteMoradorId(null); }}
+        onConfirm={handlePromoteMorador}
       />
       <ConfirmEncerrarPautaDialog
         open={encerrarPautaId !== null}
@@ -4344,6 +4370,37 @@ function ConfirmDeleteMoradorDialog({
           <Button variant="outline" className="rounded-full" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onConfirm}>
             <Trash2 className="h-4 w-4" /> Excluir
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfirmPromoteMoradorDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Promover a administradora</DialogTitle>
+          <DialogDescription>
+            Tem certeza que deseja promover este morador a administradora (admin_agencia)? Ela
+            passará a ter acesso total ao painel administrativo, além de continuar podendo usar o
+            portal como moradora.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" className="rounded-full" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button className="rounded-full" onClick={onConfirm}>
+            <ShieldCheck className="h-4 w-4" /> Promover
           </Button>
         </div>
       </DialogContent>

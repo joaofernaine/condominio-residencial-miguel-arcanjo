@@ -343,6 +343,15 @@ export async function removerMorador(id: string) {
   if (error) throw error;
 }
 
+export async function promoverAdminAgencia(id: string) {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ role: "admin_agencia" })
+    .eq("id", id)
+    .eq("role", "morador");
+  if (error) throw error;
+}
+
 // ---------- OBRAS ----------
 
 export async function fetchObras(condominioId: string) {
