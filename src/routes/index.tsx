@@ -176,6 +176,7 @@ import {
   uploadObraFoto,
   criarObra,
   criarMorador,
+  criarFuncionario,
   verificarBloqueioLogin,
   registrarTentativaLogin,
   criarPauta,
@@ -536,6 +537,8 @@ function Index() {
           <AdminDashboard profile={profile} onLogout={handleLogout} />
         ) : profile.role === "admin_agencia" ? (
           <AgencyAdminView profile={profile} onLogout={handleLogout} />
+        ) : profile.role === "zelador" ? (
+          <ZeladorDashboard profile={profile} onLogout={handleLogout} />
         ) : (
           <ResidentDashboard profile={profile} onLogout={handleLogout} />
         )
@@ -1722,6 +1725,64 @@ function compareUnidade(a: string, b: string) {
   return pa.bloco !== pb.bloco ? pa.bloco.localeCompare(pb.bloco) : pa.numero - pb.numero;
 }
 
+function ZeladorDashboard({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+  const [reservas, setReservas] = useState<ReservaComMorador[]>([]);
+  const [reservasLoading, setReservasLoading] = useState(true);
+
+  const loadReservas = useCallback(async () => {
+    setReservasLoading(true);
+    try { setReservas(await fetchReservasDoCondominio(profile.condominio_id)); }
+    catch (e) { console.error(e); toast.error("Erro ao carregar reservas."); }
+    finally { setReservasLoading(false); }
+  }, [profile.condominio_id]);
+
+  useEffect(() => { loadReservas(); }, [loadReservas]);
+
+  const handleApprove = async (id: string) => {
+    try { await aprovarReserva(id); toast.success("Reserva aprovada."); loadReservas(); }
+    catch (e) { console.error(e); toast.error("Erro ao aprovar reserva."); }
+  };
+
+  const handleReject = async (id: string, motivo: string) => {
+    try { await recusarReserva(id, motivo); toast.success("Reserva recusada."); loadReservas(); }
+    catch (e) { console.error(e); toast.error("Erro ao recusar reserva."); }
+  };
+
+  return (
+    <>
+      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
+        <nav className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Building2 className="h-6 w-6 shrink-0 text-primary" />
+            <span className="font-display truncate text-base font-semibold tracking-tight sm:text-lg">
+              <span className="sm:hidden">Cond. M. Arcanjo</span>
+              <span className="hidden sm:inline">Condomínio Residencial Miguel Arcanjo</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--gold)]/20 px-2.5 py-0.5 text-xs font-semibold text-[color:var(--gold)]">
+              <ShieldCheck className="h-3 w-3" /> <span className="hidden sm:inline">Painel do </span>Funcionário
+            </span>
+          </div>
+          <div className="flex items-center justify-end gap-2 sm:gap-3">
+            <span className="hidden text-sm font-medium capitalize sm:inline">{profile.nome_completo}</span>
+            <Button onClick={onLogout} variant="outline" size="sm" className="shrink-0 rounded-full">
+              <LogOut className="h-4 w-4" /> Sair
+            </Button>
+          </div>
+        </nav>
+      </header>
+
+      <VisitantesAdminSection condominioId={profile.condominio_id} />
+
+      <ReservationsManagement
+        reservas={reservas}
+        loading={reservasLoading}
+        onApprove={handleApprove}
+        onReject={handleReject}
+      />
+    </>
+  );
+}
+
 function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [pautasLoading, setPautasLoading] = useState(true);
@@ -1748,6 +1809,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
   const currentMonth = new Date().getMonth() + 1;
 
   const [newMoradorOpen, setNewMoradorOpen] = useState(false);
+  const [newFuncionarioOpen, setNewFuncionarioOpen] = useState(false);
   const [newObraOpen, setNewObraOpen] = useState(false);
   const [newPautaOpen, setNewPautaOpen] = useState(false);
   const [editObra, setEditObra] = useState<ObraRow | null>(null);
@@ -2031,6 +2093,9 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
               </Button>
               <Button onClick={() => setNewMoradorOpen(true)} className="rounded-full">
                 <Plus className="h-4 w-4" /> Cadastrar morador
+              </Button>
+              <Button onClick={() => setNewFuncionarioOpen(true)} variant="outline" className="rounded-full">
+                <Plus className="h-4 w-4" /> Cadastrar funcionário
               </Button>
             </div>
           </div>
@@ -2372,6 +2437,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Pr
         condominioId={profile.condominio_id}
         onCreated={loadFinanceiro}
       />
+      <NewFuncionarioDialog
+        open={newFuncionarioOpen}
+        onOpenChange={setNewFuncionarioOpen}
+        condominioId={profile.condominio_id}
+      />
       <NewObraDialog
         open={newObraOpen}
         onOpenChange={setNewObraOpen}
@@ -2507,6 +2577,76 @@ function NewMoradorDialog({
               <Label htmlFor="nm-apto">Apartamento</Label>
               <Input id="nm-apto" value={apartamento} onChange={(e) => setApartamento(e.target.value)} placeholder="Ex.: 301" required />
             </div>
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Cadastrar
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NewFuncionarioDialog({
+  open,
+  onOpenChange,
+  condominioId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  condominioId: string;
+}) {
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => { setNome(""); setEmail(""); };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim() || !email.trim()) {
+      toast.error("Preencha nome e email.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await criarFuncionario({
+        condominio_id: condominioId,
+        nome_completo: nome.trim(),
+        email: email.trim(),
+      });
+      toast.success("Funcionário cadastrado! Senha provisória: Mudar@123");
+      reset();
+      onOpenChange(false);
+    } catch (err) {
+      console.error(err);
+      toast.error(
+        err instanceof Error ? `Erro ao cadastrar: ${err.message}` : "Erro ao cadastrar funcionário.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Cadastrar funcionário</DialogTitle>
+          <DialogDescription>
+            Acesso restrito a aprovar/recusar visitantes e reservas (ex.: zelador, porteiro). Uma
+            conta será criada com senha provisória <strong>Mudar@123</strong>.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="nf-nome">Nome completo</Label>
+            <Input id="nf-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nf-email">Email</Label>
+            <Input id="nf-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <Button type="submit" className="w-full rounded-full" disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -2882,8 +3022,8 @@ function ReservationsManagement({
   loading: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string, motivo: string) => void;
-  onBlock: () => void;
-  onDeleteBloqueio: (id: string) => void;
+  onBlock?: () => void;
+  onDeleteBloqueio?: (id: string) => void;
 }) {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -2913,9 +3053,11 @@ function ReservationsManagement({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={onBlock} variant="outline" className="rounded-full">
-              <Lock className="h-4 w-4" /> Bloquear data
-            </Button>
+            {onBlock && (
+              <Button onClick={onBlock} variant="outline" className="rounded-full">
+                <Lock className="h-4 w-4" /> Bloquear data
+              </Button>
+            )}
             <div className="shrink-0 whitespace-nowrap rounded-full bg-[color:var(--gold)]/15 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
               {pending.length} {pending.length === 1 ? "pedido pendente" : "pedidos pendentes"}
             </div>
@@ -3027,6 +3169,7 @@ function ReservationsManagement({
         </div>
 
         {/* Bloqueios ativos */}
+        {onDeleteBloqueio && (
         <div className="mt-8">
           <h3 className="font-display text-xl font-medium">Datas bloqueadas</h3>
           <p className="mt-1 text-sm text-muted-foreground">Bloqueios impedem novas reservas nesses dias.</p>
@@ -3053,6 +3196,7 @@ function ReservationsManagement({
             </ul>
           )}
         </div>
+        )}
       </div>
     </section>
   );

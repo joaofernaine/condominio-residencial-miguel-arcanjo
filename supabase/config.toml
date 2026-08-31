@@ -3,5 +3,8 @@ project_id = "kccgazitxagxcbsuuiwn"
 [functions.criar-morador]
 verify_jwt = true
 
+[functions.criar-funcionario]
+verify_jwt = true
+
 [functions.controle-login]
 verify_jwt = true

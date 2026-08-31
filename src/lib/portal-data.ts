@@ -7,7 +7,7 @@ import type { FinancialStatus, ReservationStatus } from "@/lib/mocks";
 
 // ---------- TYPES (banco real) ----------
 
-export type Role = "sindica" | "morador" | "admin_agencia";
+export type Role = "sindica" | "morador" | "admin_agencia" | "zelador";
 
 export type Profile = {
   id: string;
@@ -447,6 +447,23 @@ export async function criarMorador(input: {
       nome_completo: input.nome_completo,
       bloco: input.bloco,
       apartamento: input.apartamento,
+      condominio_id: input.condominio_id,
+    },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+export async function criarFuncionario(input: {
+  condominio_id: string;
+  nome_completo: string;
+  email: string;
+}) {
+  const { data, error } = await supabase.functions.invoke("criar-funcionario", {
+    body: {
+      email: input.email,
+      nome_completo: input.nome_completo,
       condominio_id: input.condominio_id,
     },
   });
