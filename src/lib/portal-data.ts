@@ -382,11 +382,15 @@ export async function criarHistorico(input: {
 
 
 export async function fetchMoradoresDoCondominio(condominioId: string) {
+  // Lista por "tem unidade" (é morador de fato, dono/inquilino de um apê),
+  // não por role — síndica/admin_agencia promovidos a partir de um morador
+  // continuam com unidade preenchida e precisam continuar aparecendo aqui
+  // (financeiro, histórico) mesmo depois de promovidos.
   const { data, error } = await supabase
     .from("profiles")
     .select("id, nome_completo, unidade, role, titulo_funcao, profile_permissoes(permissao)")
     .eq("condominio_id", condominioId)
-    .eq("role", "morador");
+    .not("unidade", "is", null);
   if (error) throw error;
   return (data ?? []).map((m) => ({
     id: m.id,
@@ -419,8 +423,7 @@ export async function promoverPara(id: string, novoRole: "sindica" | "admin_agen
   const { error } = await supabase
     .from("profiles")
     .update({ role: novoRole })
-    .eq("id", id)
-    .eq("role", "morador");
+    .eq("id", id);
   if (error) throw error;
 }
 

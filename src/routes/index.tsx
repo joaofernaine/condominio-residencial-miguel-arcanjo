@@ -138,6 +138,7 @@ import {
 } from "@phosphor-icons/react";
 import {
   type Profile,
+  type Role,
   type PautaRow,
   type Permissao,
   PERMISSOES_DISPONIVEIS,
@@ -1835,7 +1836,14 @@ const STATUS_STYLES: Record<FinancialStatus, string> = {
   Atrasado: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
-type MoradorInfo = { id: string; nome_completo: string; unidade: string; titulo_funcao?: string | null; permissoes?: Permissao[] };
+type MoradorInfo = { id: string; nome_completo: string; unidade: string; role?: Role; titulo_funcao?: string | null; permissoes?: Permissao[] };
+
+const ROLE_LABEL: Record<Role, string> = {
+  morador: "",
+  sindica: "Síndica",
+  admin_agencia: "Administradora",
+  zelador: "Funcionário",
+};
 
 function parseUnidade(unidade: string): { bloco: string; numero: number } {
   const [bloco, numero] = unidade.split("-");
@@ -2288,6 +2296,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
                                     <p className="font-mono text-sm font-semibold">{m.unidade}</p>
                                     <p className="mt-0.5 truncate text-sm text-muted-foreground">
                                       {m.nome_completo}
+                                      {m.role && m.role !== "morador" && (
+                                        <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                          {ROLE_LABEL[m.role]}
+                                        </span>
+                                      )}
                                       {m.titulo_funcao && (
                                         <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
                                           {m.titulo_funcao}
@@ -2314,9 +2327,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
                                       <ShieldCheck className="h-3.5 w-3.5" /> Promover
                                     </Button>
                                   )}
+                                  {(!m.role || m.role === "morador") && (
                                   <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
                                     <Trash2 className="h-3.5 w-3.5" /> Excluir
                                   </Button>
+                                  )}
                                 </div>
                               </li>
                             );
@@ -2368,6 +2383,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
                                   <TableCell className="font-mono font-semibold">{m.unidade}</TableCell>
                                   <TableCell>
                                     {m.nome_completo}
+                                    {m.role && m.role !== "morador" && (
+                                      <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                        {ROLE_LABEL[m.role]}
+                                      </span>
+                                    )}
                                     {m.titulo_funcao && (
                                       <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
                                         {m.titulo_funcao}
@@ -2395,9 +2415,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
                                           <ShieldCheck className="h-3.5 w-3.5" /> Promover
                                         </Button>
                                       )}
+                                      {(!m.role || m.role === "morador") && (
                                       <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
                                         <Trash2 className="h-3.5 w-3.5" /> Excluir
                                       </Button>
+                                      )}
                                     </div>
                                   </TableCell>
                                 </TableRow>
