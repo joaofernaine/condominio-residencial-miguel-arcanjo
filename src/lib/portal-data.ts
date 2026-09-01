@@ -390,7 +390,8 @@ export async function fetchMoradoresDoCondominio(condominioId: string) {
     .from("profiles")
     .select("id, nome_completo, unidade, role, titulo_funcao, profile_permissoes(permissao)")
     .eq("condominio_id", condominioId)
-    .not("unidade", "is", null);
+    .not("unidade", "is", null)
+    .neq("unidade", "ADMIN");
   if (error) throw error;
   return (data ?? []).map((m) => ({
     id: m.id,
