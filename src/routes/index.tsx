@@ -179,6 +179,7 @@ import {
   inserirAtualizacaoObra,
   removerAtualizacaoObra,
   atualizarObra,
+  removerObra,
   uploadObraFoto,
   criarObra,
   criarMorador,
@@ -1456,6 +1457,18 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
     }
   };
 
+  const handleCancelReserva = async (id: string) => {
+    if (!confirm("Cancelar esta reserva? Esta ação não pode ser desfeita.")) return;
+    try {
+      await removerReserva(id);
+      toast.success("Reserva cancelada.");
+      loadReservas();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao cancelar reserva.");
+    }
+  };
+
   const residentName = profile.nome_completo;
 
   return (
@@ -1667,6 +1680,15 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
                             Motivo: {r.motivo_recusa}
                           </p>
                         )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="mt-2 h-7 gap-1.5 rounded-full px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => handleCancelReserva(r.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Cancelar reserva
+                        </Button>
                       </div>
                     </Reveal>
                   );
@@ -1944,6 +1966,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
   const [newObraOpen, setNewObraOpen] = useState(false);
   const [newPautaOpen, setNewPautaOpen] = useState(false);
   const [editObra, setEditObra] = useState<ObraRow | null>(null);
+  const [deleteObraId, setDeleteObraId] = useState<string | null>(null);
   const [blockOpen, setBlockOpen] = useState(false);
   const [editMorador, setEditMorador] = useState<MoradorInfo | null>(null);
   const [deleteMoradorId, setDeleteMoradorId] = useState<string | null>(null);
@@ -2129,6 +2152,18 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
     }
   };
 
+  const handleDeleteReserva = async (id: string) => {
+    if (!confirm("Excluir esta reserva? Esta ação não pode ser desfeita.")) return;
+    try {
+      await removerReserva(id);
+      toast.success("Reserva excluída.");
+      loadReservas();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao excluir reserva.");
+    }
+  };
+
   const handleDeleteMorador = async () => {
     if (!deleteMoradorId) return;
     try {
@@ -2139,6 +2174,19 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
     } catch (e) {
       console.error(e);
       toast.error("Erro ao remover morador.");
+    }
+  };
+
+  const handleDeleteObra = async () => {
+    if (!deleteObraId) return;
+    try {
+      await removerObra(deleteObraId);
+      toast.success("Obra excluída.");
+      setDeleteObraId(null);
+      loadObras();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao excluir obra.");
     }
   };
 
@@ -2522,6 +2570,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
           onReject={handleReject}
           onBlock={() => setBlockOpen(true)}
           onDeleteBloqueio={handleDeleteBloqueio}
+          onDeleteReserva={handleDeleteReserva}
         />
       </div>
 
@@ -2549,7 +2598,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
           ) : (
             <>
               <div className="mt-10">
-                <ObrasTabs obras={obras} admin onEdit={setEditObra} onChanged={loadObras} />
+                <ObrasTabs obras={obras} admin onEdit={setEditObra} onDelete={(o) => setDeleteObraId(o.id)} onChanged={loadObras} />
               </div>
               <div className="mt-10 space-y-4">
                 <h3 className="font-display text-lg font-semibold">Publicar atualização</h3>
@@ -2664,6 +2713,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
         open={deletePautaId !== null}
         onOpenChange={(v) => { if (!v) setDeletePautaId(null); }}
         onConfirm={handleDeletePauta}
+      />
+      <ConfirmDeleteObraDialog
+        open={deleteObraId !== null}
+        onOpenChange={(v) => { if (!v) setDeleteObraId(null); }}
+        onConfirm={handleDeleteObra}
       />
     </>
   );
@@ -3220,6 +3274,7 @@ function ReservationsManagement({
   onReject,
   onBlock,
   onDeleteBloqueio,
+  onDeleteReserva,
 }: {
   reservas: ReservaComMorador[];
   loading: boolean;
@@ -3227,6 +3282,7 @@ function ReservationsManagement({
   onReject: (id: string, motivo: string) => void;
   onBlock?: () => void;
   onDeleteBloqueio?: (id: string) => void;
+  onDeleteReserva?: (id: string) => void;
 }) {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -3319,23 +3375,30 @@ function ReservationsManagement({
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          {r.status === "pendente" ? (
-                            rejectingId === r.id ? null : (
-                              <div className="flex justify-end gap-2">
-                                <Button size="sm" className="h-8 rounded-full bg-[color:var(--sage)] text-primary-foreground hover:opacity-90" onClick={() => onApprove(r.id)}>
-                                  <CheckCircle2 className="h-3.5 w-3.5" /> Aprovar
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-8 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { setRejectingId(r.id); setReason(""); }}>
-                                  <XCircle className="h-3.5 w-3.5" /> Recusar
-                                </Button>
-                              </div>
-                            )
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              {uiStatus === "Confirmada" ? "Aprovada" : "Recusada"}
-                              {r.status === "recusada" && r.motivo_recusa ? ` · ${r.motivo_recusa}` : ""}
-                            </span>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            {r.status === "pendente" ? (
+                              rejectingId === r.id ? null : (
+                                <div className="flex justify-end gap-2">
+                                  <Button size="sm" className="h-8 rounded-full bg-[color:var(--sage)] text-primary-foreground hover:opacity-90" onClick={() => onApprove(r.id)}>
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Aprovar
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="h-8 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => { setRejectingId(r.id); setReason(""); }}>
+                                    <XCircle className="h-3.5 w-3.5" /> Recusar
+                                  </Button>
+                                </div>
+                              )
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                {uiStatus === "Confirmada" ? "Aprovada" : "Recusada"}
+                                {r.status === "recusada" && r.motivo_recusa ? ` · ${r.motivo_recusa}` : ""}
+                              </span>
+                            )}
+                            {onDeleteReserva && rejectingId !== r.id && (
+                              <Button size="sm" variant="ghost" className="h-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteReserva(r.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                       {rejectingId === r.id && (
@@ -3610,11 +3673,13 @@ function ObrasTabs({
   obras,
   admin = false,
   onEdit,
+  onDelete,
   onChanged,
 }: {
   obras: ObraRow[];
   admin?: boolean;
   onEdit?: (o: ObraRow) => void;
+  onDelete?: (o: ObraRow) => void;
   onChanged?: () => void;
 }) {
   const completed = obras.filter((o) => o.status === "concluido" || o.progresso_atual >= 100);
@@ -3630,13 +3695,13 @@ function ObrasTabs({
       </TabsList>
 
       <TabsContent value="completed" className="mt-10">
-        {completed.length === 0 ? <EmptyState>Nenhuma obra concluída.</EmptyState> : <ObraTimeline items={completed} icon={CheckCircle2} accent="var(--sage)" admin={admin} onEdit={onEdit} onChanged={onChanged} />}
+        {completed.length === 0 ? <EmptyState>Nenhuma obra concluída.</EmptyState> : <ObraTimeline items={completed} icon={CheckCircle2} accent="var(--sage)" admin={admin} onEdit={onEdit} onDelete={onDelete} onChanged={onChanged} />}
       </TabsContent>
       <TabsContent value="inProgress" className="mt-10">
-        {inProgress.length === 0 ? <EmptyState>Nenhuma obra em andamento.</EmptyState> : <ObraTimeline items={inProgress} icon={Hammer} accent="var(--gold)" withUpdates admin={admin} onEdit={onEdit} onChanged={onChanged} />}
+        {inProgress.length === 0 ? <EmptyState>Nenhuma obra em andamento.</EmptyState> : <ObraTimeline items={inProgress} icon={Hammer} accent="var(--gold)" withUpdates admin={admin} onEdit={onEdit} onDelete={onDelete} onChanged={onChanged} />}
       </TabsContent>
       <TabsContent value="planned" className="mt-10">
-        {planned.length === 0 ? <EmptyState>Nenhuma obra planejada.</EmptyState> : <ObraTimeline items={planned} icon={Clock} accent="var(--primary)" admin={admin} onEdit={onEdit} onChanged={onChanged} />}
+        {planned.length === 0 ? <EmptyState>Nenhuma obra planejada.</EmptyState> : <ObraTimeline items={planned} icon={Clock} accent="var(--primary)" admin={admin} onEdit={onEdit} onDelete={onDelete} onChanged={onChanged} />}
       </TabsContent>
     </Tabs>
   );
@@ -3649,6 +3714,7 @@ function ObraTimeline({
   withUpdates = false,
   admin = false,
   onEdit,
+  onDelete,
   onChanged,
 }: {
   items: ObraRow[];
@@ -3657,6 +3723,7 @@ function ObraTimeline({
   withUpdates?: boolean;
   admin?: boolean;
   onEdit?: (o: ObraRow) => void;
+  onDelete?: (o: ObraRow) => void;
   onChanged?: () => void;
 }) {
   return (
@@ -3684,16 +3751,31 @@ function ObraTimeline({
 
           {withUpdates && <ObraUpdatesGallery obraId={item.id} accent={accent} admin={admin} onChanged={onChanged} />}
 
-          {admin && onEdit && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="mt-5 h-8 gap-1.5 rounded-full text-xs"
-              onClick={() => onEdit(item)}
-            >
-              <Pencil className="h-3.5 w-3.5" /> Editar
-            </Button>
+          {admin && (onEdit || onDelete) && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {onEdit && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 rounded-full text-xs"
+                  onClick={() => onEdit(item)}
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Editar
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 rounded-full border-destructive/40 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => onDelete(item)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Excluir
+                </Button>
+              )}
+            </div>
           )}
 
           <span className="absolute right-5 top-5 text-xs font-mono text-muted-foreground/60">0{i + 1}</span>
@@ -4690,6 +4772,36 @@ function EditMoradorDialog({
             Salvar
           </Button>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfirmDeleteObraDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Excluir obra</DialogTitle>
+          <DialogDescription>
+            Tem certeza que deseja excluir esta obra? As atualizações e fotos publicadas nela
+            também serão perdidas. Esta ação não pode ser desfeita.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" className="rounded-full" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onConfirm}>
+            <Trash2 className="h-4 w-4" /> Excluir
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

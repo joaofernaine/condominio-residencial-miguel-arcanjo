@@ -483,6 +483,11 @@ export async function atualizarObra(
   if (error) throw error;
 }
 
+export async function removerObra(id: string) {
+  const { error } = await supabase.from("obras").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // ---------- STORAGE (obras-fotos) ----------
 
 const OBRAS_BUCKET = "obras-fotos";
