@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
+import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClassificadosIndexRouteImport } from './routes/classificados.index'
 import { Route as ClassificadosNovoRouteImport } from './routes/classificados.novo'
@@ -16,6 +18,16 @@ import { Route as ClassificadosMeusRouteImport } from './routes/classificados.me
 import { Route as AdminClassificadosIndexRouteImport } from './routes/admin.classificados.index'
 import { Route as AdminClassificadosPendentesRouteImport } from './routes/admin.classificados.pendentes'
 
+const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
+  id: '/redefinir-senha',
+  path: '/redefinir-senha',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacidadeRoute = PrivacidadeRouteImport.update({
+  id: '/privacidade',
+  path: '/privacidade',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -50,6 +62,8 @@ const AdminClassificadosPendentesRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/classificados/meus': typeof ClassificadosMeusRoute
   '/classificados/novo': typeof ClassificadosNovoRoute
   '/classificados/': typeof ClassificadosIndexRoute
@@ -58,6 +72,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/classificados/meus': typeof ClassificadosMeusRoute
   '/classificados/novo': typeof ClassificadosNovoRoute
   '/classificados': typeof ClassificadosIndexRoute
@@ -67,6 +83,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/classificados/meus': typeof ClassificadosMeusRoute
   '/classificados/novo': typeof ClassificadosNovoRoute
   '/classificados/': typeof ClassificadosIndexRoute
@@ -77,6 +95,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/privacidade'
+    | '/redefinir-senha'
     | '/classificados/meus'
     | '/classificados/novo'
     | '/classificados/'
@@ -85,6 +105,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/privacidade'
+    | '/redefinir-senha'
     | '/classificados/meus'
     | '/classificados/novo'
     | '/classificados'
@@ -93,6 +115,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/privacidade'
+    | '/redefinir-senha'
     | '/classificados/meus'
     | '/classificados/novo'
     | '/classificados/'
@@ -102,6 +126,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PrivacidadeRoute: typeof PrivacidadeRoute
+  RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   ClassificadosMeusRoute: typeof ClassificadosMeusRoute
   ClassificadosNovoRoute: typeof ClassificadosNovoRoute
   ClassificadosIndexRoute: typeof ClassificadosIndexRoute
@@ -111,6 +137,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/redefinir-senha': {
+      id: '/redefinir-senha'
+      path: '/redefinir-senha'
+      fullPath: '/redefinir-senha'
+      preLoaderRoute: typeof RedefinirSenhaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacidade': {
+      id: '/privacidade'
+      path: '/privacidade'
+      fullPath: '/privacidade'
+      preLoaderRoute: typeof PrivacidadeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -158,6 +198,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PrivacidadeRoute: PrivacidadeRoute,
+  RedefinirSenhaRoute: RedefinirSenhaRoute,
   ClassificadosMeusRoute: ClassificadosMeusRoute,
   ClassificadosNovoRoute: ClassificadosNovoRoute,
   ClassificadosIndexRoute: ClassificadosIndexRoute,
