@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CalendarDays, Car, CheckCircle2, Loader2, User, UserCheck, XCircle } from "lucide-react";
 
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,6 +64,22 @@ export function VisitantesAdminSection({ condominioId }: { condominioId: string 
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // Sem isso, quem já estava com a tela aberta antes de um pedido novo
+  // chegar só veria depois de recarregar a página na mão — foi exatamente
+  // o que aconteceu com a síndica: um morador cadastrou visitante e não
+  // "apareceu" pra ela até alguém dar refresh.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`visitantes-admin-${condominioId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "visitantes", filter: `condominio_id=eq.${condominioId}` },
+        () => reload(),
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [condominioId, reload]);
 
   const filtrados = useMemo(
     () => (filtro === "todos" ? items : items.filter((v) => v.status === filtro)),
