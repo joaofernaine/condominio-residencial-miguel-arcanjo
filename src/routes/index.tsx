@@ -146,6 +146,9 @@ import {
   PERMISSOES_DISPONIVEIS,
   definirPermissoes,
   fetchPermissoesDoProfile,
+  type DestinatarioAlerta,
+  fetchDestinatariosAlertas,
+  definirRecebeAlertas,
   type ReservaRow,
   type ReservaComMorador,
   type HistoricoRow,
@@ -2713,6 +2716,99 @@ function ObrasAdminSection({ condominioId, canManage }: { condominioId: string; 
   );
 }
 
+// Quem já pode aprovar visitante/reserva (sindica, admin_agencia, ou
+// permissão granular) recebe um e-mail toda vez que entra um pedido
+// pendente — a síndica escolhe aqui quem quer continuar recebendo. Só
+// controla o e-mail, não a permissão em si (isso é "Gerenciar função").
+function AlertasPendenciaSection({ condominioId }: { condominioId: string }) {
+  const [destinatarios, setDestinatarios] = useState<DestinatarioAlerta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      setDestinatarios(await fetchDestinatariosAlertas(condominioId));
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao carregar destinatários de alerta.");
+    } finally {
+      setLoading(false);
+    }
+  }, [condominioId]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const toggle = async (d: DestinatarioAlerta, checked: boolean) => {
+    setSavingId(d.id);
+    setDestinatarios((prev) => prev.map((x) => (x.id === d.id ? { ...x, receber_alertas_pendencia: checked } : x)));
+    try {
+      await definirRecebeAlertas(d.id, checked);
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao salvar preferência de alerta.");
+      setDestinatarios((prev) => prev.map((x) => (x.id === d.id ? { ...x, receber_alertas_pendencia: !checked } : x)));
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  return (
+    <section className="border-t border-border bg-secondary/30 py-16">
+      <div className="mx-auto max-w-7xl px-6">
+        <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary">
+          <Bell className="h-3.5 w-3.5" /> Alertas por e-mail
+        </span>
+        <h2 className="mt-3 text-3xl font-medium md:text-4xl">Quem recebe aviso de pendência</h2>
+        <p className="mt-4 max-w-2xl text-muted-foreground">
+          Toda vez que chega um visitante ou reserva pendente, quem estiver marcado aqui recebe um
+          e-mail. Desmarque quem não quiser mais receber.
+        </p>
+
+        {loading ? (
+          <div className="mt-8"><LoadingBlock /></div>
+        ) : destinatarios.length === 0 ? (
+          <div className="mt-8 rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
+            Ninguém tem permissão de aprovar visitante/reserva ainda.
+          </div>
+        ) : (
+          <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+            {destinatarios.map((d) => (
+              <li key={d.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)]">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {d.nome_completo}
+                    {d.role !== "morador" && (
+                      <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        {ROLE_LABEL[d.role]}
+                      </span>
+                    )}
+                    {d.titulo_funcao && (
+                      <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
+                        {d.titulo_funcao}
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {[d.recebeAlertaVisitante && "visitantes", d.recebeAlertaReserva && "reservas"].filter(Boolean).join(" e ")}
+                  </p>
+                </div>
+                <label className="flex shrink-0 items-center gap-2">
+                  <Switch
+                    checked={d.receber_alertas_pendencia}
+                    onCheckedChange={(v) => toggle(d, v)}
+                    disabled={savingId === d.id}
+                  />
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia = false }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode; isAdminAgencia?: boolean }) {
   const [reservas, setReservas] = useState<ReservaComMorador[]>([]);
   const [reservasLoading, setReservasLoading] = useState(true);
@@ -2862,6 +2958,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
         isAdminAgencia={isAdminAgencia}
         onDataLoaded={(h, m) => { setHistorico(h); setMoradores(m); }}
       />
+      <AlertasPendenciaSection condominioId={profile.condominio_id} />
       <VotacoesAdminSection condominioId={profile.condominio_id} canManage />
 
       {/* Reservas */}

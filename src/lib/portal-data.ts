@@ -203,6 +203,53 @@ export async function markFirstAccessComplete(authUserId: string) {
   if (error) throw error;
 }
 
+// ---------- ALERTAS DE PENDÊNCIA POR E-MAIL ----------
+// "Destinatário elegível" = quem já tem como aprovar visitante ou reserva
+// (sindica, admin_agencia, ou permissão granular aprovar_visitantes/
+// aprovar_reservas) — a síndica só liga/desliga o e-mail pra quem já
+// pode agir, não define quem pode agir (isso é "Gerenciar função").
+
+export type DestinatarioAlerta = {
+  id: string;
+  nome_completo: string;
+  role: Role;
+  titulo_funcao: string | null;
+  recebeAlertaVisitante: boolean;
+  recebeAlertaReserva: boolean;
+  receber_alertas_pendencia: boolean;
+};
+
+export async function fetchDestinatariosAlertas(condominioId: string): Promise<DestinatarioAlerta[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, nome_completo, role, titulo_funcao, receber_alertas_pendencia, profile_permissoes(permissao)")
+    .eq("condominio_id", condominioId);
+  if (error) throw error;
+  return (data ?? [])
+    .map((p) => {
+      const perms = ((p.profile_permissoes ?? []) as { permissao: Permissao }[]).map((pp) => pp.permissao);
+      const admin = p.role === "sindica" || p.role === "admin_agencia";
+      return {
+        id: p.id,
+        nome_completo: p.nome_completo,
+        role: p.role as Role,
+        titulo_funcao: p.titulo_funcao as string | null,
+        recebeAlertaVisitante: admin || perms.includes("aprovar_visitantes"),
+        recebeAlertaReserva: admin || perms.includes("aprovar_reservas"),
+        receber_alertas_pendencia: p.receber_alertas_pendencia as boolean,
+      };
+    })
+    .filter((p) => p.recebeAlertaVisitante || p.recebeAlertaReserva);
+}
+
+export async function definirRecebeAlertas(profileId: string, receber: boolean) {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ receber_alertas_pendencia: receber })
+    .eq("id", profileId);
+  if (error) throw error;
+}
+
 // ---------- PAUTAS / VOTOS ----------
 
 export async function fetchPautasAtivas(condominioId: string) {
