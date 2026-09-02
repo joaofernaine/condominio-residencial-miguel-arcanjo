@@ -2,13 +2,17 @@
 // Chamada por um trigger no banco (visitantes/reservas, ver migration
 // 20260902030000_trigger_notificar_pendencia.sql) toda vez que entra um
 // registro com status='pendente'. Manda um e-mail (via Resend) pra quem
-// pode aprovar aquele tipo de pedido e está com o alerta ligado
-// (profiles.receber_alertas_pendencia).
+// pode aprovar aquele tipo de pedido e está com o alerta daquele tipo
+// ligado.
 //
 // Não usa verify_jwt (quem chama é o Postgres via pg_net, não um usuário
 // logado) — em vez disso, exige o header x-internal-secret batendo com
 // o segredo INTERNAL_WEBHOOK_SECRET, pra ninguém de fora conseguir
 // disparar e-mail em massa só descobrindo a URL da function.
+//
+// A preferência de e-mail é por tipo (profiles.receber_alerta_visitante /
+// receber_alerta_reserva), controlada como checkbox minimalista dentro
+// de "Gerenciar função", ao lado de cada permissão correspondente.
 //
 // Precisa de duas secrets configuradas no projeto (Dashboard > Edge
 // Functions > Manage secrets), em QA e produção:
@@ -54,7 +58,7 @@ Deno.serve(async (req) => {
       .from("profiles")
       .select("id, auth_user_id, nome_completo, role, profile_permissoes(permissao)")
       .eq("condominio_id", condominio_id)
-      .eq("receber_alertas_pendencia", true);
+      .eq(tipo === "visitante" ? "receber_alerta_visitante" : "receber_alerta_reserva", true);
     if (perfisErr) throw perfisErr;
 
     const destinatarios = ((perfis ?? []) as PerfilComPermissoes[]).filter((p) => {

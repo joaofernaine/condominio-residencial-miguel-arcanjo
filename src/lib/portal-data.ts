@@ -204,60 +204,32 @@ export async function markFirstAccessComplete(authUserId: string) {
 }
 
 // ---------- ALERTAS DE PENDÊNCIA POR E-MAIL ----------
-// "Destinatário elegível" = quem já tem como aprovar visitante ou reserva
-// (sindica, admin_agencia, ou permissão granular aprovar_visitantes/
-// aprovar_reservas) — a síndica só liga/desliga o e-mail pra quem já
-// pode agir, não define quem pode agir (isso é "Gerenciar função").
+// Um checkbox por tipo (visitante/reserva), minimalista, ao lado da
+// permissão correspondente dentro de "Gerenciar função" — não é uma tela
+// própria. Quem já é sindica/admin_agencia recebe independente de
+// permissão; quem tem aprovar_visitantes/aprovar_reservas também.
 
-export type DestinatarioAlerta = {
-  id: string;
-  nome_completo: string;
-  role: Role;
-  titulo_funcao: string | null;
-  recebeAlertaVisitante: boolean;
-  recebeAlertaReserva: boolean;
-  receber_alertas_pendencia: boolean;
-};
+export type AlertasPreferencia = { visitante: boolean; reserva: boolean };
 
-export async function fetchDestinatariosAlertas(condominioId: string): Promise<DestinatarioAlerta[]> {
+export async function fetchAlertasPreferencia(profileId: string): Promise<AlertasPreferencia> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, nome_completo, role, titulo_funcao, receber_alertas_pendencia, profile_permissoes(permissao)")
-    .eq("condominio_id", condominioId);
-  if (error) throw error;
-  return (data ?? [])
-    .map((p) => {
-      const perms = ((p.profile_permissoes ?? []) as { permissao: Permissao }[]).map((pp) => pp.permissao);
-      const admin = p.role === "sindica" || p.role === "admin_agencia";
-      return {
-        id: p.id,
-        nome_completo: p.nome_completo,
-        role: p.role as Role,
-        titulo_funcao: p.titulo_funcao as string | null,
-        recebeAlertaVisitante: admin || perms.includes("aprovar_visitantes"),
-        recebeAlertaReserva: admin || perms.includes("aprovar_reservas"),
-        receber_alertas_pendencia: p.receber_alertas_pendencia as boolean,
-      };
-    })
-    .filter((p) => p.recebeAlertaVisitante || p.recebeAlertaReserva);
-}
-
-export async function definirRecebeAlertas(profileId: string, receber: boolean) {
-  const { error } = await supabase
-    .from("profiles")
-    .update({ receber_alertas_pendencia: receber })
-    .eq("id", profileId);
-  if (error) throw error;
-}
-
-export async function fetchRecebeAlertas(profileId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("receber_alertas_pendencia")
+    .select("receber_alerta_visitante, receber_alerta_reserva")
     .eq("id", profileId)
     .maybeSingle();
   if (error) throw error;
-  return (data?.receber_alertas_pendencia as boolean | undefined) ?? true;
+  return {
+    visitante: (data?.receber_alerta_visitante as boolean | undefined) ?? true,
+    reserva: (data?.receber_alerta_reserva as boolean | undefined) ?? true,
+  };
+}
+
+export async function definirAlertasPreferencia(profileId: string, prefs: AlertasPreferencia) {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ receber_alerta_visitante: prefs.visitante, receber_alerta_reserva: prefs.reserva })
+    .eq("id", profileId);
+  if (error) throw error;
 }
 
 // ---------- PAUTAS / VOTOS ----------
