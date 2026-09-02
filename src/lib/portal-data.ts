@@ -7,6 +7,10 @@ import type { FinancialStatus, ReservationStatus } from "@/lib/mocks";
 
 // ---------- TYPES (banco real) ----------
 
+// "zelador" é legado — nenhum fluxo de cadastro cria mais esse role
+// (criar-funcionario agora usa "morador" com unidade null + permissões
+// granulares). Mantido no tipo só pra não quebrar profiles antigos que
+// ainda tenham esse valor no banco.
 export type Role = "sindica" | "morador" | "admin_agencia" | "zelador";
 
 export type Permissao =
@@ -382,42 +386,50 @@ export async function criarHistorico(input: {
 
 
 export async function fetchMoradoresDoCondominio(condominioId: string) {
-  // Lista por "tem unidade" (é morador de fato, dono/inquilino de um apê),
-  // não por role — síndica/admin_agencia promovidos a partir de um morador
-  // continuam com unidade preenchida e precisam continuar aparecendo aqui
-  // (financeiro, histórico) mesmo depois de promovidos.
+  // Lista todo mundo com unidade preenchida (moradores de fato — síndica/
+  // admin_agencia promovidos a partir de um morador continuam aparecendo
+  // aqui, financeiro/histórico, mesmo depois de promovidos) MAIS quem tem
+  // unidade null (funcionário puro, cadastrado via criar-funcionario — sem
+  // role especial, só profiles comuns sem unidade), num bloco
+  // "Funcionários" à parte. Só "ADMIN" (sentinela legado de um cadastro
+  // manual antigo) fica de fora. Filtro em JS, não em SQL, porque
+  // `.neq("unidade", "ADMIN")` excluiria as linhas com unidade NULL (NULL
+  // <> 'ADMIN' avalia "unknown", não true, no Postgres).
   const { data, error } = await supabase
     .from("profiles")
     .select("id, nome_completo, unidade, role, titulo_funcao, profile_permissoes(permissao)")
-    .eq("condominio_id", condominioId)
-    .not("unidade", "is", null)
-    .neq("unidade", "ADMIN");
+    .eq("condominio_id", condominioId);
   if (error) throw error;
-  return (data ?? []).map((m) => ({
-    id: m.id,
-    nome_completo: m.nome_completo,
-    unidade: m.unidade,
-    role: m.role as Role,
-    titulo_funcao: m.titulo_funcao as string | null,
-    permissoes: ((m.profile_permissoes ?? []) as { permissao: Permissao }[]).map((p) => p.permissao),
-  }));
+  return (data ?? [])
+    .filter((m) => m.unidade !== "ADMIN")
+    .map((m) => ({
+      id: m.id,
+      nome_completo: m.nome_completo,
+      unidade: m.unidade as string | null,
+      role: m.role as Role,
+      titulo_funcao: m.titulo_funcao as string | null,
+      permissoes: ((m.profile_permissoes ?? []) as { permissao: Permissao }[]).map((p) => p.permissao),
+    }));
 }
 
 export async function atualizarMorador(
   id: string,
-  patch: { nome_completo: string; unidade: string },
+  patch: { nome_completo: string; unidade: string | null },
 ) {
   const { error } = await supabase.from("profiles").update(patch).eq("id", id);
   if (error) throw error;
 }
 
+// Sem filtro de role aqui de propósito — quem decide o que pode ser
+// apagado é a RLS (profiles_delete): morador sempre; síndica só se quem
+// chamou for admin_agencia; admin_agencia nunca pode ser apagada por
+// ninguém. O front já só mostra o botão pra quem tem a permissão certa.
+// Chama a edge function excluir-pessoa em vez de apagar `profiles` direto
+// pelo client — apagar só o profile deixava o login em auth.users pra
+// trás, travando o e-mail pra sempre ("A user with this email address
+// has already been registered" ao tentar recadastrar a mesma pessoa).
 export async function removerMorador(id: string) {
-  const { error } = await supabase
-    .from("profiles")
-    .delete()
-    .eq("id", id)
-    .eq("role", "morador");
-  if (error) throw error;
+  await invocarFuncaoEdge("excluir-pessoa", { profile_id: id });
 }
 
 export async function promoverPara(id: string, novoRole: "sindica" | "admin_agencia") {
@@ -515,6 +527,38 @@ export async function uploadObraFoto(obraId: string, file: File) {
 
 // ---------- CADASTROS (síndica) ----------
 
+/**
+ * Chama uma edge function e propaga o motivo real do erro. Sem isso,
+ * quando a function responde com status != 2xx, o supabase-js troca a
+ * mensagem por um genérico "Edge Function returned a non-2xx status
+ * code" e o `{ error: "..." }` que a function mandou de propósito
+ * (email duplicado, campo faltando, sem permissão) se perde — quem vê o
+ * toast não descobre o que aconteceu de verdade.
+ */
+async function invocarFuncaoEdge<T = { success: true }>(
+  nome: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const { data, error } = await supabase.functions.invoke(nome, { body });
+  if (error) {
+    const context = (error as { context?: Response }).context;
+    let mensagemReal: string | null = null;
+    if (context && typeof context.json === "function") {
+      try {
+        const corpo = await context.clone().json();
+        if (corpo?.error) mensagemReal = corpo.error;
+      } catch {
+        // corpo da resposta não era JSON — usa a mensagem genérica mesmo
+      }
+    }
+    throw new Error(mensagemReal ?? error.message);
+  }
+  if ((data as { error?: string } | null)?.error) {
+    throw new Error((data as { error: string }).error);
+  }
+  return data as T;
+}
+
 export async function criarMorador(input: {
   condominio_id: string;
   nome_completo: string;
@@ -522,18 +566,13 @@ export async function criarMorador(input: {
   bloco: string;
   apartamento: string;
 }) {
-  const { data, error } = await supabase.functions.invoke("criar-morador", {
-    body: {
-      email: input.email,
-      nome_completo: input.nome_completo,
-      bloco: input.bloco,
-      apartamento: input.apartamento,
-      condominio_id: input.condominio_id,
-    },
+  return invocarFuncaoEdge("criar-morador", {
+    email: input.email,
+    nome_completo: input.nome_completo,
+    bloco: input.bloco,
+    apartamento: input.apartamento,
+    condominio_id: input.condominio_id,
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data;
 }
 
 export async function criarFuncionario(input: {
@@ -543,18 +582,13 @@ export async function criarFuncionario(input: {
   titulo_funcao?: string;
   permissoes?: Permissao[];
 }) {
-  const { data, error } = await supabase.functions.invoke("criar-funcionario", {
-    body: {
-      email: input.email,
-      nome_completo: input.nome_completo,
-      condominio_id: input.condominio_id,
-      titulo_funcao: input.titulo_funcao,
-      permissoes: input.permissoes,
-    },
+  return invocarFuncaoEdge("criar-funcionario", {
+    email: input.email,
+    nome_completo: input.nome_completo,
+    condominio_id: input.condominio_id,
+    titulo_funcao: input.titulo_funcao,
+    permissoes: input.permissoes,
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data;
 }
 
 // ---------- LOGIN / RATE LIMITING ----------

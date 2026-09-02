@@ -1,6 +1,8 @@
 // Supabase Edge Function: criar-morador
 // Cria um usuário no Auth (com senha provisória) e atualiza o profile
 // correspondente com nome, unidade (bloco-apartamento) e condomínio.
+// Além de sindica/admin_agencia, libera também quem tem a permissão
+// granular "gerenciar_moradores" (mesmo padrão de criar-funcionario).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const corsHeaders = {
@@ -60,11 +62,23 @@ Deno.serve(async (req) => {
       .eq("auth_user_id", authData.user.id)
       .maybeSingle();
 
+    let callerTemPermissao = false;
+    if (
+      callerProfile &&
+      !["sindica", "admin_agencia"].includes(callerProfile.role) &&
+      callerProfile.condominio_id === condominio_id
+    ) {
+      const { data: podeCadastrar } = await caller.rpc("has_permissao", {
+        p_permissao: "gerenciar_moradores",
+      });
+      callerTemPermissao = podeCadastrar === true;
+    }
+
     if (
       profileErr ||
       !callerProfile ||
-      !["sindica", "admin_agencia"].includes(callerProfile.role) ||
-      callerProfile.condominio_id !== condominio_id
+      callerProfile.condominio_id !== condominio_id ||
+      !(["sindica", "admin_agencia"].includes(callerProfile.role) || callerTemPermissao)
     ) {
       return json({ error: "Sem permissão para esta operação." }, 403);
     }

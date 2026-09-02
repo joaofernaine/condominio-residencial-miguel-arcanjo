@@ -1,10 +1,13 @@
 // Supabase Edge Function: criar-funcionario
-// Cria um usuário no Auth (com senha provisória) e um profile role
-// "zelador" — funcionário com acesso restrito a aprovar/recusar
-// visitantes e reservas (ver RLS em supabase/migrations,
-// 20260831000000_role_zelador.sql). Espelha o mesmo padrão de segurança
-// de criar-morador: só sindica/admin_agencia do próprio condomínio podem
-// chamar isso.
+// Cria um usuário no Auth (com senha provisória) e um profile "morador"
+// sem unidade (unidade: null) — funcionário puro, cujo acesso é 100%
+// definido pelas permissões granulares marcadas em `permissoes` (mesmo
+// mecanismo de "morador com cargo", ver 20260831010000_permissoes_granulares.sql).
+// Não existe mais um role "zelador" com poderes fixos — o título/cargo
+// (ex.: "Zelador", "Porteiro") é só um rótulo em `titulo_funcao`. Espelha
+// o mesmo padrão de segurança de criar-morador: só sindica/admin_agencia
+// do próprio condomínio (ou quem tiver a permissão cadastrar_funcionario)
+// podem chamar isso.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const corsHeaders = {
@@ -121,7 +124,7 @@ Deno.serve(async (req) => {
       nome_completo,
       unidade: null,
       condominio_id,
-      role: "zelador" as const,
+      role: "morador" as const,
       titulo_funcao: titulo_funcao || null,
       primeiro_acesso: true,
     };

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   Bell,
@@ -26,6 +26,7 @@ import {
   LogOut,
   Mail,
   MapPin,
+  Maximize2,
   Phone,
   Pencil,
   Plus,
@@ -49,6 +50,7 @@ import heroImage from "@/assets/condo-hero.jpg";
 import sobreImage from "@/assets/condo-sobre.jpg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -541,11 +543,9 @@ function Index() {
         </div>
       ) : profile && !showFirstAccess ? (
         profile.role === "sindica" ? (
-          <AdminDashboard profile={profile} onLogout={handleLogout} />
+          <SindicaAdminView profile={profile} onLogout={handleLogout} />
         ) : profile.role === "admin_agencia" ? (
           <AgencyAdminView profile={profile} onLogout={handleLogout} />
-        ) : profile.role === "zelador" ? (
-          <ZeladorDashboard profile={profile} onLogout={handleLogout} />
         ) : profile.permissoes.length > 0 ? (
           <PermissionedMoradorView profile={profile} onLogout={handleLogout} />
         ) : (
@@ -630,7 +630,7 @@ function LoginDialog({
               </div>
               <div>
                 <Label htmlFor="login-password">Senha</Label>
-                <Input id="login-password" name="password" type="password" required className="mt-2 h-11" placeholder="••••••••" />
+                <PasswordInput id="login-password" name="password" required className="mt-2 h-11" placeholder="••••••••" />
               </div>
               <button
                 type="button"
@@ -773,7 +773,7 @@ function FirstAccessDialog({
             <Label htmlFor="fa-pw" className="flex items-center gap-1.5">
               <Lock className="h-3.5 w-3.5" /> Nova senha
             </Label>
-            <Input id="fa-pw" type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} required className="mt-2 h-11" placeholder="Mínimo 8 caracteres" maxLength={60} />
+            <PasswordInput id="fa-pw" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} required className="mt-2 h-11" placeholder="Mínimo 8 caracteres" maxLength={60} />
             {pw.length > 0 && (
               <div className="mt-2">
                 <div className="flex gap-1">
@@ -803,7 +803,7 @@ function FirstAccessDialog({
             <Label htmlFor="fa-pw2" className="flex items-center gap-1.5">
               <Lock className="h-3.5 w-3.5" /> Confirmar nova senha
             </Label>
-            <Input id="fa-pw2" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} required className="mt-2 h-11" placeholder="Repita a nova senha" maxLength={60} />
+            <PasswordInput id="fa-pw2" value={pw2} onChange={(e) => setPw2(e.target.value)} required className="mt-2 h-11" placeholder="Repita a nova senha" maxLength={60} />
             {pw2.length > 0 && pw !== pw2 && (
               <p className="mt-1 text-xs font-medium text-destructive">As senhas não coincidem.</p>
             )}
@@ -857,8 +857,18 @@ function PermissionedMoradorView({ profile, onLogout }: { profile: Profile; onLo
   );
 }
 
-function PermissionedAdminView({ profile, onLogout, toggle }: { profile: Profile; onLogout: () => void; toggle: ReactNode }) {
-  const perms = new Set(profile.permissoes);
+// Renderiza as seções administrativas de acordo com as permissões
+// granulares do profile (profile.permissoes) — usado pelo PermissionedAdminView,
+// que atende tanto morador-com-cargo (ex.: Diego) quanto funcionário puro
+// (profile role "morador" com unidade null, cadastrado via
+// criar-funcionario). Sem role especial: o que a pessoa pode fazer é
+// 100% definido pelo que foi marcado em "Gerenciar função".
+function PermissoesGatedSections({
+  profile,
+}: {
+  profile: Profile;
+}) {
+  const perms = useMemo(() => new Set(profile.permissoes), [profile.permissoes]);
   const [reservas, setReservas] = useState<ReservaComMorador[]>([]);
   const [reservasLoading, setReservasLoading] = useState(true);
 
@@ -882,28 +892,6 @@ function PermissionedAdminView({ profile, onLogout, toggle }: { profile: Profile
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
-        <nav className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Building2 className="h-6 w-6 shrink-0 text-primary" />
-            <span className="font-display truncate text-base font-semibold tracking-tight sm:text-lg">
-              <span className="sm:hidden">Cond. M. Arcanjo</span>
-              <span className="hidden sm:inline">Condomínio Residencial Miguel Arcanjo</span>
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--gold)]/20 px-2.5 py-0.5 text-xs font-semibold text-[color:var(--gold)]">
-              <ShieldCheck className="h-3 w-3" /> {profile.titulo_funcao || "Função"}
-            </span>
-          </div>
-          <div className="flex items-center justify-end gap-2 sm:gap-3">
-            <span className="hidden text-sm font-medium capitalize sm:inline">{profile.nome_completo}</span>
-            {toggle}
-            <Button onClick={onLogout} variant="outline" size="sm" className="shrink-0 rounded-full">
-              <LogOut className="h-4 w-4" /> Sair
-            </Button>
-          </div>
-        </nav>
-      </header>
-
       {!perms.size && (
         <div className="mx-auto max-w-7xl px-6 py-16">
           <EmptyState>Nenhuma permissão administrativa concedida ainda.</EmptyState>
@@ -936,7 +924,93 @@ function PermissionedAdminView({ profile, onLogout, toggle }: { profile: Profile
       {perms.has("publicar_avisos") && (
         <LandingConfigSection condominioId={profile.condominio_id} />
       )}
+
+      <UnidadesCobrancasSection
+        profile={profile}
+        canView={perms.has("ver_financeiro")}
+        canEditFinanceiro={perms.has("editar_financeiro")}
+        canManageMoradores={perms.has("gerenciar_moradores")}
+        canDeleteMorador={perms.has("excluir_morador")}
+        canCadastrarFuncionario={perms.has("cadastrar_funcionario")}
+        canManagePermissoes={false}
+      />
+
+      <ObrasAdminSection condominioId={profile.condominio_id} canManage={perms.has("gerenciar_obras")} />
+
+      <VotacoesAdminSection condominioId={profile.condominio_id} canManage={perms.has("gerenciar_votacoes")} />
     </>
+  );
+}
+
+function PermissionedAdminView({ profile, onLogout, toggle }: { profile: Profile; onLogout: () => void; toggle: ReactNode }) {
+  return (
+    <>
+      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
+        <nav className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Building2 className="h-6 w-6 shrink-0 text-primary" />
+            <span className="font-display truncate text-base font-semibold tracking-tight sm:text-lg">
+              <span className="sm:hidden">Cond. M. Arcanjo</span>
+              <span className="hidden sm:inline">Condomínio Residencial Miguel Arcanjo</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--gold)]/20 px-2.5 py-0.5 text-xs font-semibold text-[color:var(--gold)]">
+              <ShieldCheck className="h-3 w-3" /> {profile.titulo_funcao || "Função"}
+            </span>
+          </div>
+          <div className="flex items-center justify-end gap-2 sm:gap-3">
+            <span className="hidden text-sm font-medium capitalize sm:inline">{profile.nome_completo}</span>
+            {toggle}
+            <Button onClick={onLogout} variant="outline" size="sm" className="shrink-0 rounded-full">
+              <LogOut className="h-4 w-4" /> Sair
+            </Button>
+          </div>
+        </nav>
+      </header>
+
+      <PermissoesGatedSections profile={profile} />
+    </>
+  );
+}
+
+// Síndica também é moradora da própria unidade (ex.: 202) — sem esse toggle
+// ela não tinha nenhuma tela para cadastrar visitante/reserva pra si mesma
+// (só o painel de moderação, que é do condomínio inteiro). admin_agencia e
+// morador-com-cargo já tinham esse mesmo padrão de alternância.
+function SindicaAdminView({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+  const [adminView, setAdminView] = useState<"sindica" | "morador">("sindica");
+  const moradorProfile = useMemo<Profile>(() => ({ ...profile, role: "morador" }), [profile]);
+
+  const toggle = (
+    <div className="inline-flex items-center overflow-hidden rounded-full border border-input bg-background shadow-sm">
+      <button
+        type="button"
+        onClick={() => setAdminView("sindica")}
+        className={`px-3 py-1.5 text-xs font-medium transition ${
+          adminView === "sindica"
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted"
+        }`}
+      >
+        Visão Síndica
+      </button>
+      <button
+        type="button"
+        onClick={() => setAdminView("morador")}
+        className={`px-3 py-1.5 text-xs font-medium transition ${
+          adminView === "morador"
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted"
+        }`}
+      >
+        Visão Morador
+      </button>
+    </div>
+  );
+
+  return adminView === "sindica" ? (
+    <AdminDashboard profile={profile} onLogout={onLogout} adminAgenciaToggle={toggle} />
+  ) : (
+    <ResidentDashboard profile={moradorProfile} onLogout={onLogout} adminAgenciaToggle={toggle} />
   );
 }
 
@@ -1858,7 +1932,9 @@ const STATUS_STYLES: Record<FinancialStatus, string> = {
   Atrasado: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
-type MoradorInfo = { id: string; nome_completo: string; unidade: string; role?: Role; titulo_funcao?: string | null; permissoes?: Permissao[] };
+type MoradorInfo = { id: string; nome_completo: string; unidade: string | null; role?: Role; titulo_funcao?: string | null; permissoes?: Permissao[] };
+
+const BLOCO_FUNCIONARIOS = "Funcionários";
 
 const ROLE_LABEL: Record<Role, string> = {
   morador: "",
@@ -1872,81 +1948,50 @@ function parseUnidade(unidade: string): { bloco: string; numero: number } {
   return { bloco: bloco ?? unidade, numero: Number(numero) || 0 };
 }
 
-function compareUnidade(a: string, b: string) {
+// Zelador (funcionário) não tem unidade — cai sempre no bloco "Funcionários",
+// ordenado por último (nunca alfabeticamente misturado com os blocos reais).
+function blocoDoMorador(unidade: string | null): string {
+  return unidade ? parseUnidade(unidade).bloco : BLOCO_FUNCIONARIOS;
+}
+
+function compareUnidade(a: string | null, b: string | null) {
+  if (a == null || b == null) return a == null && b == null ? 0 : a == null ? 1 : -1;
   const pa = parseUnidade(a);
   const pb = parseUnidade(b);
   return pa.bloco !== pb.bloco ? pa.bloco.localeCompare(pb.bloco) : pa.numero - pb.numero;
 }
 
-function ZeladorDashboard({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
-  const [reservas, setReservas] = useState<ReservaComMorador[]>([]);
-  const [reservasLoading, setReservasLoading] = useState(true);
-
-  const loadReservas = useCallback(async () => {
-    setReservasLoading(true);
-    try { setReservas(await fetchReservasDoCondominio(profile.condominio_id)); }
-    catch (e) { console.error(e); toast.error("Erro ao carregar reservas."); }
-    finally { setReservasLoading(false); }
-  }, [profile.condominio_id]);
-
-  useEffect(() => { loadReservas(); }, [loadReservas]);
-
-  const handleApprove = async (id: string) => {
-    try { await aprovarReserva(id); toast.success("Reserva aprovada."); loadReservas(); }
-    catch (e) { console.error(e); toast.error("Erro ao aprovar reserva."); }
-  };
-
-  const handleReject = async (id: string, motivo: string) => {
-    try { await recusarReserva(id, motivo); toast.success("Reserva recusada."); loadReservas(); }
-    catch (e) { console.error(e); toast.error("Erro ao recusar reserva."); }
-  };
-
-  return (
-    <>
-      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
-        <nav className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Building2 className="h-6 w-6 shrink-0 text-primary" />
-            <span className="font-display truncate text-base font-semibold tracking-tight sm:text-lg">
-              <span className="sm:hidden">Cond. M. Arcanjo</span>
-              <span className="hidden sm:inline">Condomínio Residencial Miguel Arcanjo</span>
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--gold)]/20 px-2.5 py-0.5 text-xs font-semibold text-[color:var(--gold)]">
-              <ShieldCheck className="h-3 w-3" /> <span className="hidden sm:inline">Painel do </span>Funcionário
-            </span>
-          </div>
-          <div className="flex items-center justify-end gap-2 sm:gap-3">
-            <span className="hidden text-sm font-medium capitalize sm:inline">{profile.nome_completo}</span>
-            <Button onClick={onLogout} variant="outline" size="sm" className="shrink-0 rounded-full">
-              <LogOut className="h-4 w-4" /> Sair
-            </Button>
-          </div>
-        </nav>
-      </header>
-
-      <VisitantesAdminSection condominioId={profile.condominio_id} />
-
-      <ReservationsManagement
-        reservas={reservas}
-        loading={reservasLoading}
-        onApprove={handleApprove}
-        onReject={handleReject}
-      />
-    </>
-  );
-}
-
-function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia = false }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode; isAdminAgencia?: boolean }) {
-  const [pautas, setPautas] = useState<PautaRow[]>([]);
-  const [pautasLoading, setPautasLoading] = useState(true);
-  const [pautasEncerradas, setPautasEncerradas] = useState<PautaRow[]>([]);
-  const [pautasEncerradasLoading, setPautasEncerradasLoading] = useState(true);
-  const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
-  const [encerrarPautaId, setEncerrarPautaId] = useState<string | null>(null);
-  const [deletePautaId, setDeletePautaId] = useState<string | null>(null);
-
-  const [reservas, setReservas] = useState<ReservaComMorador[]>([]);
-  const [reservasLoading, setReservasLoading] = useState(true);
+// Lista de unidades/moradores/funcionários com cobrança — usada tanto pelo
+// painel completo da síndica/admin_agencia (todas as flags true) quanto
+// pela visão de quem tem permissões granulares específicas (Diego, um
+// funcionário etc.) — cada botão/ação só aparece se a permissão
+// correspondente foi concedida. "Gerenciar função" fica de fora do controle
+// por `canManagePermissoes` bem restrito de propósito: só sindica/admin_agencia
+// concedem/revogam permissão de terceiros (profile_permissoes_write no
+// banco já bloqueia qualquer outra pessoa, então nem exibimos o botão).
+function UnidadesCobrancasSection({
+  profile,
+  canView,
+  canEditFinanceiro,
+  canManageMoradores,
+  canDeleteMorador,
+  canCadastrarFuncionario,
+  canManagePermissoes,
+  isAdminAgencia = false,
+  onDataLoaded,
+}: {
+  profile: Profile;
+  canView: boolean;
+  canEditFinanceiro: boolean;
+  canManageMoradores: boolean;
+  canDeleteMorador: boolean;
+  canCadastrarFuncionario: boolean;
+  canManagePermissoes: boolean;
+  isAdminAgencia?: boolean;
+  onDataLoaded?: (historico: HistoricoRow[], moradores: MoradorInfo[]) => void;
+}) {
+  const onDataLoadedRef = useRef(onDataLoaded);
+  onDataLoadedRef.current = onDataLoaded;
 
   const [historico, setHistorico] = useState<HistoricoRow[]>([]);
   const [moradores, setMoradores] = useState<MoradorInfo[]>([]);
@@ -1954,30 +1999,21 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
   const [historyUnitId, setHistoryUnitId] = useState<string | null>(null);
   const [fundoObrasTotal, setFundoObrasTotal] = useState<number | null>(null);
   const [importarOpen, setImportarOpen] = useState(false);
-
-  const [obras, setObras] = useState<ObraRow[]>([]);
-  const [obrasLoading, setObrasLoading] = useState(true);
-
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
-
   const [newMoradorOpen, setNewMoradorOpen] = useState(false);
   const [newFuncionarioOpen, setNewFuncionarioOpen] = useState(false);
-  const [newObraOpen, setNewObraOpen] = useState(false);
-  const [newPautaOpen, setNewPautaOpen] = useState(false);
-  const [editObra, setEditObra] = useState<ObraRow | null>(null);
-  const [deleteObraId, setDeleteObraId] = useState<string | null>(null);
-  const [blockOpen, setBlockOpen] = useState(false);
   const [editMorador, setEditMorador] = useState<MoradorInfo | null>(null);
-  const [deleteMoradorId, setDeleteMoradorId] = useState<string | null>(null);
+  const [deleteAlvo, setDeleteAlvo] = useState<MoradorInfo | null>(null);
   const [promoteMoradorId, setPromoteMoradorId] = useState<string | null>(null);
   const [funcaoMorador, setFuncaoMorador] = useState<MoradorInfo | null>(null);
   const [openBlocos, setOpenBlocos] = useState<Set<string>>(new Set());
 
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+
   const moradoresPorBloco = useMemo(() => {
     const grupos = new Map<string, MoradorInfo[]>();
     for (const m of moradores) {
-      const { bloco } = parseUnidade(m.unidade);
+      const bloco = blocoDoMorador(m.unidade);
       if (!grupos.has(bloco)) grupos.set(bloco, []);
       grupos.get(bloco)!.push(m);
     }
@@ -1993,21 +2029,469 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
     });
   };
 
+  const loadFinanceiro = useCallback(async () => {
+    setFinLoading(true);
+    try {
+      const [h, m] = await Promise.all([
+        fetchHistoricoCondominio(profile.condominio_id),
+        fetchMoradoresDoCondominio(profile.condominio_id),
+      ]);
+      const sorted = [...m].sort((a, b) => compareUnidade(a.unidade, b.unidade));
+      setHistorico(h);
+      setMoradores(sorted);
+      onDataLoadedRef.current?.(h, sorted);
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao carregar dados financeiros.");
+    } finally {
+      setFinLoading(false);
+    }
+    try {
+      setFundoObrasTotal(await fetchFundoObrasTotal(profile.condominio_id));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [profile.condominio_id]);
 
+  const podeAlgumaCoisa = canView || canEditFinanceiro || canManageMoradores || canDeleteMorador || canCadastrarFuncionario;
+  useEffect(() => {
+    if (podeAlgumaCoisa) loadFinanceiro();
+  }, [podeAlgumaCoisa, loadFinanceiro]);
+
+  const handleHistoricoChange = async (monthNum: number, uiStatus: FinancialStatus) => {
+    if (!historyUnitId) return;
+    const dbStatus = HISTORICO_UI_TO_DB[uiStatus];
+    const existing = historico.find(
+      (h) => h.unidade_id === historyUnitId && h.ano === currentYear && h.mes === monthNum,
+    );
+    try {
+      if (existing) {
+        await atualizarHistorico(existing.id, dbStatus);
+      } else {
+        await criarHistorico({
+          condominio_id: profile.condominio_id,
+          unidade_id: historyUnitId,
+          ano: currentYear,
+          mes: monthNum,
+          status: dbStatus,
+          valor: 0,
+        });
+      }
+      toast.success(`Status atualizado para "${uiStatus}".`);
+      loadFinanceiro();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao atualizar status.");
+    }
+  };
+
+  const handleDeleteMorador = async () => {
+    if (!deleteAlvo) return;
+    try {
+      await removerMorador(deleteAlvo.id);
+      toast.success("Removido.");
+      setDeleteAlvo(null);
+      loadFinanceiro();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao remover.");
+    }
+  };
+
+  const handlePromoteMorador = async (novoRole: "sindica" | "admin_agencia") => {
+    if (!promoteMoradorId) return;
+    try {
+      await promoverPara(promoteMoradorId, novoRole);
+      toast.success(novoRole === "sindica" ? "Morador promovido a síndica." : "Morador promovido a administradora.");
+      setPromoteMoradorId(null);
+      loadFinanceiro();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao promover morador.");
+    }
+  };
+
+  if (!podeAlgumaCoisa) return null;
+
+  const podeVerFinanceiro = canView || canEditFinanceiro;
+
+  return (
+    <>
+      <section className="bg-secondary/40 py-16">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Wallet className="h-3.5 w-3.5" /> Situação financeira
+              </span>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Unidades & cobranças</h2>
+              {podeVerFinanceiro && (
+                <p className="mt-4 text-muted-foreground">
+                  Clique em uma linha para editar o histórico mensal ({currentYear}).
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {canEditFinanceiro && (
+                <Button onClick={() => setImportarOpen(true)} variant="outline" className="rounded-full">
+                  <FileUp className="h-4 w-4" /> Importar relatório financeiro
+                </Button>
+              )}
+              {canManageMoradores && (
+                <Button onClick={() => setNewMoradorOpen(true)} className="rounded-full">
+                  <Plus className="h-4 w-4" /> Cadastrar morador
+                </Button>
+              )}
+              {canCadastrarFuncionario && (
+                <Button onClick={() => setNewFuncionarioOpen(true)} variant="outline" className="rounded-full">
+                  <Plus className="h-4 w-4" /> Cadastrar funcionário
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {podeVerFinanceiro && fundoObrasTotal !== null && fundoObrasTotal > 0 && (
+            <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-[color:var(--gold)]/30 bg-[color:var(--gold)]/10 px-4 py-2.5 text-sm">
+              <Hammer className="h-4 w-4 text-[color:var(--gold)]" />
+              <span>
+                Fundo de Obras arrecadado: <strong>{fundoObrasTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
+              </span>
+            </div>
+          )}
+
+          {canEditFinanceiro && (
+            <ImportarRelatorioDialog
+              open={importarOpen}
+              onOpenChange={setImportarOpen}
+              condominioId={profile.condominio_id}
+              meuProfileId={profile.id}
+              onImportado={loadFinanceiro}
+            />
+          )}
+
+          {finLoading ? (
+            <div className="mt-8 rounded-2xl border border-border bg-card py-8 text-center text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
+              <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+            </div>
+          ) : moradores.length === 0 ? (
+            <div className="mt-8 rounded-2xl border border-border bg-card py-8 text-center text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
+              Nenhuma unidade cadastrada.
+            </div>
+          ) : (
+            <>
+              {/* Mobile: cards empilhados agrupados por bloco (a tabela não cabe em telas estreitas) */}
+              <div className="mt-8 grid gap-3 md:hidden">
+                {moradoresPorBloco.map(([bloco, lista]) => {
+                  const open = openBlocos.has(bloco);
+                  return (
+                    <div key={bloco}>
+                      <button
+                        type="button"
+                        onClick={() => toggleBloco(bloco)}
+                        aria-expanded={open}
+                        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-[var(--shadow-soft)]"
+                      >
+                        <span className="font-medium">
+                          {bloco === BLOCO_FUNCIONARIOS ? bloco : `Bloco ${bloco}`}{" "}
+                          <span className="font-normal text-muted-foreground">
+                            · {lista.length}{" "}
+                            {bloco === BLOCO_FUNCIONARIOS
+                              ? lista.length === 1 ? "funcionário" : "funcionários"
+                              : lista.length === 1 ? "unidade" : "unidades"}
+                          </span>
+                        </span>
+                        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+                      </button>
+                      {open && (
+                        <ul className="mt-3 grid gap-3">
+                          {lista.map((m) => {
+                            const isFuncionario = m.unidade == null;
+                            const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
+                            const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
+                            const podeHistorico = podeVerFinanceiro && !isFuncionario;
+                            const podeExcluir =
+                              (canDeleteMorador && (!m.role || m.role === "morador")) ||
+                              (isAdminAgencia && m.role === "sindica");
+                            return (
+                              <li
+                                key={m.id}
+                                onClick={podeHistorico ? () => setHistoryUnitId(m.id) : undefined}
+                                className={`min-w-0 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)] ${podeHistorico ? "cursor-pointer" : ""}`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    {m.unidade && <p className="font-mono text-sm font-semibold">{m.unidade}</p>}
+                                    <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                                      {m.nome_completo}
+                                      {m.role && m.role !== "morador" && (
+                                        <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                          {ROLE_LABEL[m.role]}
+                                        </span>
+                                      )}
+                                      {m.titulo_funcao && (
+                                        <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
+                                          {m.titulo_funcao}
+                                        </span>
+                                      )}
+                                    </p>
+                                  </div>
+                                  {podeVerFinanceiro && !isFuncionario && (
+                                    <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
+                                      {uiStatus}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                                  {podeHistorico && (
+                                    <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
+                                      <History className="h-3.5 w-3.5" /> Histórico
+                                    </Button>
+                                  )}
+                                  {canManageMoradores && (
+                                    <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
+                                      <Pencil className="h-3.5 w-3.5" /> Editar
+                                    </Button>
+                                  )}
+                                  {canManagePermissoes && (
+                                    <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setFuncaoMorador(m)}>
+                                      <ShieldCheck className="h-3.5 w-3.5" /> Gerenciar função
+                                    </Button>
+                                  )}
+                                  {isAdminAgencia && (
+                                    <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
+                                      <ShieldCheck className="h-3.5 w-3.5" /> Promover
+                                    </Button>
+                                  )}
+                                  {podeExcluir && (
+                                    <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteAlvo(m)}>
+                                      <Trash2 className="h-3.5 w-3.5" /> Excluir
+                                    </Button>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop: tabela agrupada por bloco */}
+              <div className="mt-8 hidden overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)] md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[120px]">Unidade</TableHead>
+                      <TableHead>Morador responsável</TableHead>
+                      {podeVerFinanceiro && (
+                        <TableHead>Status ({MONTH_NAMES_PT_SHORT[currentMonth - 1]}/{currentYear})</TableHead>
+                      )}
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {moradoresPorBloco.map(([bloco, lista]) => {
+                      const open = openBlocos.has(bloco);
+                      return (
+                        <Fragment key={bloco}>
+                          <TableRow
+                            onClick={() => toggleBloco(bloco)}
+                            className="cursor-pointer bg-secondary/40 hover:bg-secondary/60"
+                            aria-expanded={open}
+                          >
+                            <TableCell colSpan={podeVerFinanceiro ? 4 : 3} className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+                                {bloco === BLOCO_FUNCIONARIOS ? bloco : `Bloco ${bloco}`}{" "}
+                                <span className="font-normal text-muted-foreground">
+                                  · {lista.length}{" "}
+                                  {bloco === BLOCO_FUNCIONARIOS
+                                    ? lista.length === 1 ? "funcionário" : "funcionários"
+                                    : lista.length === 1 ? "unidade" : "unidades"}
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {open &&
+                            lista.map((m) => {
+                              const isFuncionario = m.unidade == null;
+                              const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
+                              const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
+                              const podeHistorico = podeVerFinanceiro && !isFuncionario;
+                              const podeExcluir =
+                                (canDeleteMorador && (!m.role || m.role === "morador")) ||
+                                (isAdminAgencia && m.role === "sindica");
+                              return (
+                                <TableRow
+                                  key={m.id}
+                                  onClick={podeHistorico ? () => setHistoryUnitId(m.id) : undefined}
+                                  className={podeHistorico ? "cursor-pointer" : ""}
+                                >
+                                  <TableCell className="font-mono font-semibold">{m.unidade ?? "—"}</TableCell>
+                                  <TableCell>
+                                    {m.nome_completo}
+                                    {m.role && m.role !== "morador" && (
+                                      <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                        {ROLE_LABEL[m.role]}
+                                      </span>
+                                    )}
+                                    {m.titulo_funcao && (
+                                      <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
+                                        {m.titulo_funcao}
+                                      </span>
+                                    )}
+                                  </TableCell>
+                                  {podeVerFinanceiro && (
+                                    <TableCell>
+                                      {!isFuncionario && (
+                                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
+                                          {uiStatus}
+                                        </span>
+                                      )}
+                                    </TableCell>
+                                  )}
+                                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex justify-end gap-2">
+                                      {podeHistorico && (
+                                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
+                                          <History className="h-3.5 w-3.5" /> Histórico
+                                        </Button>
+                                      )}
+                                      {canManageMoradores && (
+                                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
+                                          <Pencil className="h-3.5 w-3.5" /> Editar
+                                        </Button>
+                                      )}
+                                      {canManagePermissoes && (
+                                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setFuncaoMorador(m)}>
+                                          <ShieldCheck className="h-3.5 w-3.5" /> Gerenciar função
+                                        </Button>
+                                      )}
+                                      {isAdminAgencia && (
+                                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
+                                          <ShieldCheck className="h-3.5 w-3.5" /> Promover
+                                        </Button>
+                                      )}
+                                      {podeExcluir && (
+                                        <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteAlvo(m)}>
+                                          <Trash2 className="h-3.5 w-3.5" /> Excluir
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                        </Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      {podeVerFinanceiro && (
+        <PaymentHistoryDialog
+          moradorId={historyUnitId}
+          moradores={moradores}
+          historico={historico}
+          year={currentYear}
+          onClose={() => setHistoryUnitId(null)}
+          onChange={handleHistoricoChange}
+        />
+      )}
+
+      {canManageMoradores && (
+        <>
+          <NewMoradorDialog
+            open={newMoradorOpen}
+            onOpenChange={setNewMoradorOpen}
+            condominioId={profile.condominio_id}
+            onCreated={loadFinanceiro}
+          />
+          <EditMoradorDialog
+            morador={editMorador}
+            onOpenChange={(v) => { if (!v) setEditMorador(null); }}
+            onSaved={loadFinanceiro}
+          />
+        </>
+      )}
+
+      {canCadastrarFuncionario && (
+        <NewFuncionarioDialog
+          open={newFuncionarioOpen}
+          onOpenChange={setNewFuncionarioOpen}
+          condominioId={profile.condominio_id}
+          onCreated={loadFinanceiro}
+        />
+      )}
+
+      {canDeleteMorador && (
+        <ConfirmDeleteMoradorDialog
+          morador={deleteAlvo}
+          onOpenChange={(v) => { if (!v) setDeleteAlvo(null); }}
+          onConfirm={handleDeleteMorador}
+        />
+      )}
+
+      {isAdminAgencia && (
+        <ConfirmPromoteMoradorDialog
+          open={promoteMoradorId !== null}
+          onOpenChange={(v) => { if (!v) setPromoteMoradorId(null); }}
+          onConfirm={handlePromoteMorador}
+        />
+      )}
+
+      {canManagePermissoes && (
+        <FuncaoPermissoesDialog
+          morador={funcaoMorador}
+          onOpenChange={(v) => { if (!v) setFuncaoMorador(null); }}
+          onSaved={loadFinanceiro}
+        />
+      )}
+    </>
+  );
+}
+
+// Gestão de votações — usada pela síndica/admin_agencia (sempre) e por quem
+// tem a permissão granular "gerenciar_votacoes". Sem essa permissão, a
+// seção inteira não existe pra essa pessoa (não tem visão parcial: ou
+// gerencia, ou nem aparece — não existe "gerenciar_votacoes" parcial na
+// lista de permissões).
+function VotacoesAdminSection({ condominioId, canManage }: { condominioId: string; canManage: boolean }) {
+  const [pautas, setPautas] = useState<PautaRow[]>([]);
+  const [pautasLoading, setPautasLoading] = useState(true);
+  const [pautasEncerradas, setPautasEncerradas] = useState<PautaRow[]>([]);
+  const [pautasEncerradasLoading, setPautasEncerradasLoading] = useState(true);
+  const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
+  const [encerrarPautaId, setEncerrarPautaId] = useState<string | null>(null);
+  const [deletePautaId, setDeletePautaId] = useState<string | null>(null);
+  const [newPautaOpen, setNewPautaOpen] = useState(false);
 
   const loadPautas = useCallback(async () => {
     setPautasLoading(true);
-    try { setPautas(await fetchPautasAtivas(profile.condominio_id)); }
+    try { setPautas(await fetchPautasAtivas(condominioId)); }
     catch (e) { console.error(e); toast.error("Erro ao carregar pautas."); }
     finally { setPautasLoading(false); }
-  }, [profile.condominio_id]);
+  }, [condominioId]);
 
   const loadPautasEncerradas = useCallback(async () => {
     setPautasEncerradasLoading(true);
-    try { setPautasEncerradas(await fetchPautasEncerradas(profile.condominio_id)); }
+    try { setPautasEncerradas(await fetchPautasEncerradas(condominioId)); }
     catch (e) { console.error(e); toast.error("Erro ao carregar histórico de votações."); }
     finally { setPautasEncerradasLoading(false); }
-  }, [profile.condominio_id]);
+  }, [condominioId]);
+
+  useEffect(() => {
+    if (!canManage) return;
+    loadPautas();
+    loadPautasEncerradas();
+  }, [canManage, loadPautas, loadPautasEncerradas]);
 
   const handleEncerrarPauta = async () => {
     if (!encerrarPautaId) return;
@@ -2037,6 +2521,214 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
     }
   };
 
+  if (!canManage) return null;
+
+  return (
+    <>
+      <section className="bg-background py-16">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Vote className="h-3.5 w-3.5" /> Votações
+              </span>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Resultados em tempo real</h2>
+              <p className="mt-4 text-muted-foreground">
+                Visível apenas para quem gerencia votações. Os moradores não enxergam os parciais.
+              </p>
+            </div>
+            <Button onClick={() => setNewPautaOpen(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Nova pauta
+            </Button>
+          </div>
+
+          <Tabs defaultValue="ativas" className="mt-8">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-full bg-card p-1.5 shadow-[var(--shadow-soft)] sm:w-auto sm:flex-nowrap">
+              <TabsTrigger value="ativas" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">Ativas</TabsTrigger>
+              <TabsTrigger value="encerradas" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">
+                <History className="h-3.5 w-3.5" /> Encerradas
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="ativas" className="mt-6 space-y-4">
+              {pautasLoading ? (
+                <LoadingBlock label="Carregando pautas…" />
+              ) : pautas.length === 0 ? (
+                <EmptyState>Nenhuma pauta ativa no momento.</EmptyState>
+              ) : (
+                pautas.map((p) => (
+                  <PollAdminCard
+                    key={p.id}
+                    pauta={p}
+                    expanded={expandedAudit === p.id}
+                    onToggleAudit={() => setExpandedAudit((cur) => (cur === p.id ? null : p.id))}
+                    onFinalize={() => setEncerrarPautaId(p.id)}
+                    onDelete={() => setDeletePautaId(p.id)}
+                  />
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="encerradas" className="mt-6 space-y-4">
+              {pautasEncerradasLoading ? (
+                <LoadingBlock label="Carregando histórico…" />
+              ) : pautasEncerradas.length === 0 ? (
+                <EmptyState>Nenhuma votação encerrada ainda.</EmptyState>
+              ) : (
+                pautasEncerradas.map((p) => (
+                  <PollAdminCard
+                    key={p.id}
+                    pauta={p}
+                    expanded={expandedAudit === p.id}
+                    onToggleAudit={() => setExpandedAudit((cur) => (cur === p.id ? null : p.id))}
+                    onDelete={() => setDeletePautaId(p.id)}
+                    encerrada
+                  />
+                ))
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </section>
+
+      <NewPautaDialog
+        open={newPautaOpen}
+        onOpenChange={setNewPautaOpen}
+        condominioId={condominioId}
+        onCreated={loadPautas}
+      />
+      <ConfirmEncerrarPautaDialog
+        open={encerrarPautaId !== null}
+        onOpenChange={(v) => { if (!v) setEncerrarPautaId(null); }}
+        onConfirm={handleEncerrarPauta}
+      />
+      <ConfirmDeletePautaDialog
+        open={deletePautaId !== null}
+        onOpenChange={(v) => { if (!v) setDeletePautaId(null); }}
+        onConfirm={handleDeletePauta}
+      />
+    </>
+  );
+}
+
+// Gestão de obras — síndica/admin_agencia sempre, ou quem tem a permissão
+// granular "gerenciar_obras". Assim como votações, não existe um nível
+// parcial: ou a pessoa gerencia obras, ou a seção não aparece pra ela (a
+// visualização somente-leitura das obras já existe pros moradores em
+// ResidentDashboard, fora deste componente).
+function ObrasAdminSection({ condominioId, canManage }: { condominioId: string; canManage: boolean }) {
+  const [obras, setObras] = useState<ObraRow[]>([]);
+  const [obrasLoading, setObrasLoading] = useState(true);
+  const [newObraOpen, setNewObraOpen] = useState(false);
+  const [editObra, setEditObra] = useState<ObraRow | null>(null);
+  const [deleteObraId, setDeleteObraId] = useState<string | null>(null);
+
+  const loadObras = useCallback(async () => {
+    setObrasLoading(true);
+    try { setObras(await fetchObras(condominioId)); }
+    catch (e) { console.error(e); toast.error("Erro ao carregar obras."); }
+    finally { setObrasLoading(false); }
+  }, [condominioId]);
+
+  useEffect(() => {
+    if (!canManage) return;
+    loadObras();
+  }, [canManage, loadObras]);
+
+  const handleDeleteObra = async () => {
+    if (!deleteObraId) return;
+    try {
+      await removerObra(deleteObraId);
+      toast.success("Obra excluída.");
+      setDeleteObraId(null);
+      loadObras();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao excluir obra.");
+    }
+  };
+
+  if (!canManage) return null;
+
+  return (
+    <>
+      <section className="bg-background py-16">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+                <Hammer className="h-3.5 w-3.5" /> Obras
+              </span>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Andamento das obras</h2>
+              <p className="mt-4 text-muted-foreground">
+                Publique atualizações e ajuste o progresso das obras em andamento.
+              </p>
+            </div>
+            <Button onClick={() => setNewObraOpen(true)} className="rounded-full">
+              <Plus className="h-4 w-4" /> Nova obra
+            </Button>
+          </div>
+
+          {obrasLoading ? (
+            <div className="mt-10"><LoadingBlock label="Carregando obras…" /></div>
+          ) : (
+            <>
+              <div className="mt-10">
+                <ObrasTabs obras={obras} admin onEdit={setEditObra} onDelete={(o) => setDeleteObraId(o.id)} onChanged={loadObras} />
+              </div>
+              <div className="mt-10 space-y-4">
+                <h3 className="font-display text-lg font-semibold">Publicar atualização</h3>
+                {obras.filter((o) => o.status === "em_andamento").length === 0 ? (
+                  <EmptyState>Nenhuma obra em andamento para atualizar.</EmptyState>
+                ) : (
+                  obras
+                    .filter((o) => o.status === "em_andamento")
+                    .map((o) => (
+                      <ObraUpdateForm key={o.id} obra={o} onSaved={loadObras} />
+                    ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      <NewObraDialog
+        open={newObraOpen}
+        onOpenChange={setNewObraOpen}
+        condominioId={condominioId}
+        onCreated={loadObras}
+      />
+      <EditObraDialog
+        obra={editObra}
+        onOpenChange={(v) => { if (!v) setEditObra(null); }}
+        onSaved={loadObras}
+      />
+      <ConfirmDeleteObraDialog
+        open={deleteObraId !== null}
+        onOpenChange={(v) => { if (!v) setDeleteObraId(null); }}
+        onConfirm={handleDeleteObra}
+      />
+    </>
+  );
+}
+
+function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia = false }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode; isAdminAgencia?: boolean }) {
+  const [reservas, setReservas] = useState<ReservaComMorador[]>([]);
+  const [reservasLoading, setReservasLoading] = useState(true);
+
+  // historico/moradores só existem aqui pros StatCards do topo — quem
+  // busca e mantém esses dados de verdade é UnidadesCobrancasSection
+  // (via onDataLoaded), pra não duplicar a query. Pautas/obras viraram
+  // VotacoesAdminSection/ObrasAdminSection, cada uma com seu próprio fetch.
+  const [historico, setHistorico] = useState<HistoricoRow[]>([]);
+  const [moradores, setMoradores] = useState<MoradorInfo[]>([]);
+
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+
+  const [blockOpen, setBlockOpen] = useState(false);
+
   const loadReservas = useCallback(async () => {
     setReservasLoading(true);
     try { setReservas(await fetchReservasDoCondominio(profile.condominio_id)); }
@@ -2044,44 +2736,16 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
     finally { setReservasLoading(false); }
   }, [profile.condominio_id]);
 
-  const loadFinanceiro = useCallback(async () => {
-    setFinLoading(true);
-    try {
-      const [h, m] = await Promise.all([
-        fetchHistoricoCondominio(profile.condominio_id),
-        fetchMoradoresDoCondominio(profile.condominio_id),
-      ]);
-      setHistorico(h);
-      setMoradores([...m].sort((a, b) => compareUnidade(a.unidade, b.unidade)));
-    } catch (e) {
-      console.error(e);
-      toast.error("Erro ao carregar dados financeiros.");
-    } finally {
-      setFinLoading(false);
-    }
-    // Fundo de Obras é um extra opcional — não pode derrubar moradores/histórico
-    // se a função ainda não existir nesse ambiente (ex. antes da migration).
-    try {
-      setFundoObrasTotal(await fetchFundoObrasTotal(profile.condominio_id));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [profile.condominio_id]);
-
-  const loadObras = useCallback(async () => {
-    setObrasLoading(true);
-    try { setObras(await fetchObras(profile.condominio_id)); }
-    catch (e) { console.error(e); toast.error("Erro ao carregar obras."); }
-    finally { setObrasLoading(false); }
-  }, [profile.condominio_id]);
-
   useEffect(() => {
-    loadPautas(); loadPautasEncerradas(); loadReservas(); loadFinanceiro(); loadObras();
-  }, [loadPautas, loadPautasEncerradas, loadReservas, loadFinanceiro, loadObras]);
+    loadReservas();
+  }, [loadReservas]);
 
   const stats = useMemo(() => {
     const counts: Record<FinancialStatus, number> = { "Em dia": 0, Pendente: 0, Atrasado: 0 };
-    moradores.forEach((m) => {
+    // Funcionário puro (unidade null) não paga condomínio — não entra na
+    // contagem de inadimplência. Morador com cargo continua contando
+    // normalmente, porque ele tem unidade e paga como qualquer morador.
+    moradores.filter((m) => m.unidade != null).forEach((m) => {
       const row = historico.find(
         (h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth,
       );
@@ -2113,34 +2777,6 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
     }
   };
 
-  const handleHistoricoChange = async (monthNum: number, uiStatus: FinancialStatus) => {
-    if (!historyUnitId) return;
-    const dbStatus = HISTORICO_UI_TO_DB[uiStatus];
-    const existing = historico.find(
-      (h) => h.unidade_id === historyUnitId && h.ano === currentYear && h.mes === monthNum,
-    );
-    try {
-      if (existing) {
-        await atualizarHistorico(existing.id, dbStatus);
-      } else {
-        await criarHistorico({
-          condominio_id: profile.condominio_id,
-          unidade_id: historyUnitId,
-          ano: currentYear,
-          mes: monthNum,
-          status: dbStatus,
-          valor: 0,
-        });
-      }
-      toast.success(`Status atualizado para "${uiStatus}".`);
-      loadFinanceiro();
-    } catch (e) {
-      console.error(e);
-      toast.error("Erro ao atualizar histórico.");
-    }
-  };
-
-
   const handleDeleteBloqueio = async (id: string) => {
     try {
       await removerReserva(id);
@@ -2161,45 +2797,6 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
     } catch (e) {
       console.error(e);
       toast.error("Erro ao excluir reserva.");
-    }
-  };
-
-  const handleDeleteMorador = async () => {
-    if (!deleteMoradorId) return;
-    try {
-      await removerMorador(deleteMoradorId);
-      toast.success("Morador removido.");
-      setDeleteMoradorId(null);
-      loadFinanceiro();
-    } catch (e) {
-      console.error(e);
-      toast.error("Erro ao remover morador.");
-    }
-  };
-
-  const handleDeleteObra = async () => {
-    if (!deleteObraId) return;
-    try {
-      await removerObra(deleteObraId);
-      toast.success("Obra excluída.");
-      setDeleteObraId(null);
-      loadObras();
-    } catch (e) {
-      console.error(e);
-      toast.error("Erro ao excluir obra.");
-    }
-  };
-
-  const handlePromoteMorador = async (novoRole: "sindica" | "admin_agencia") => {
-    if (!promoteMoradorId) return;
-    try {
-      await promoverPara(promoteMoradorId, novoRole);
-      toast.success(novoRole === "sindica" ? "Morador promovido a síndica." : "Morador promovido a administradora.");
-      setPromoteMoradorId(null);
-      loadFinanceiro();
-    } catch (e) {
-      console.error(e);
-      toast.error("Erro ao promover morador.");
     }
   };
 
@@ -2254,312 +2851,18 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
         </div>
       </section>
 
-      {/* Inadimplência */}
-      <section className="bg-secondary/40 py-16">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-                <Wallet className="h-3.5 w-3.5" /> Situação financeira
-              </span>
-              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Unidades & cobranças</h2>
-              <p className="mt-4 text-muted-foreground">
-                Clique em uma linha para editar o histórico mensal ({currentYear}).
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={() => setImportarOpen(true)} variant="outline" className="rounded-full">
-                <FileUp className="h-4 w-4" /> Importar relatório financeiro
-              </Button>
-              <Button onClick={() => setNewMoradorOpen(true)} className="rounded-full">
-                <Plus className="h-4 w-4" /> Cadastrar morador
-              </Button>
-              <Button onClick={() => setNewFuncionarioOpen(true)} variant="outline" className="rounded-full">
-                <Plus className="h-4 w-4" /> Cadastrar funcionário
-              </Button>
-            </div>
-          </div>
-
-          {fundoObrasTotal !== null && fundoObrasTotal > 0 && (
-            <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-[color:var(--gold)]/30 bg-[color:var(--gold)]/10 px-4 py-2.5 text-sm">
-              <Hammer className="h-4 w-4 text-[color:var(--gold)]" />
-              <span>
-                Fundo de Obras arrecadado: <strong>{fundoObrasTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-              </span>
-            </div>
-          )}
-
-          <ImportarRelatorioDialog
-            open={importarOpen}
-            onOpenChange={setImportarOpen}
-            condominioId={profile.condominio_id}
-            meuProfileId={profile.id}
-            onImportado={loadFinanceiro}
-          />
-
-
-          {finLoading ? (
-            <div className="mt-8 rounded-2xl border border-border bg-card py-8 text-center text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
-              <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-            </div>
-          ) : moradores.length === 0 ? (
-            <div className="mt-8 rounded-2xl border border-border bg-card py-8 text-center text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
-              Nenhuma unidade cadastrada.
-            </div>
-          ) : (
-            <>
-              {/* Mobile: cards empilhados agrupados por bloco (a tabela não cabe em telas estreitas) */}
-              <div className="mt-8 grid gap-3 md:hidden">
-                {moradoresPorBloco.map(([bloco, lista]) => {
-                  const open = openBlocos.has(bloco);
-                  return (
-                    <div key={bloco}>
-                      <button
-                        type="button"
-                        onClick={() => toggleBloco(bloco)}
-                        aria-expanded={open}
-                        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-[var(--shadow-soft)]"
-                      >
-                        <span className="font-medium">
-                          Bloco {bloco}{" "}
-                          <span className="font-normal text-muted-foreground">
-                            · {lista.length} {lista.length === 1 ? "unidade" : "unidades"}
-                          </span>
-                        </span>
-                        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
-                      </button>
-                      {open && (
-                        <ul className="mt-3 grid gap-3">
-                          {lista.map((m) => {
-                            const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
-                            const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
-                            return (
-                              <li
-                                key={m.id}
-                                onClick={() => setHistoryUnitId(m.id)}
-                                className="min-w-0 cursor-pointer rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)]"
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <p className="font-mono text-sm font-semibold">{m.unidade}</p>
-                                    <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                                      {m.nome_completo}
-                                      {m.role && m.role !== "morador" && (
-                                        <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                                          {ROLE_LABEL[m.role]}
-                                        </span>
-                                      )}
-                                      {m.titulo_funcao && (
-                                        <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
-                                          {m.titulo_funcao}
-                                        </span>
-                                      )}
-                                    </p>
-                                  </div>
-                                  <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
-                                    {uiStatus}
-                                  </span>
-                                </div>
-                                <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
-                                    <History className="h-3.5 w-3.5" /> Histórico
-                                  </Button>
-                                  <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
-                                    <Pencil className="h-3.5 w-3.5" /> Editar
-                                  </Button>
-                                  <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setFuncaoMorador(m)}>
-                                    <ShieldCheck className="h-3.5 w-3.5" /> Gerenciar função
-                                  </Button>
-                                  {isAdminAgencia && (
-                                    <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
-                                      <ShieldCheck className="h-3.5 w-3.5" /> Promover
-                                    </Button>
-                                  )}
-                                  {(!m.role || m.role === "morador") && (
-                                  <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
-                                    <Trash2 className="h-3.5 w-3.5" /> Excluir
-                                  </Button>
-                                  )}
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Desktop: tabela agrupada por bloco */}
-              <div className="mt-8 hidden overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)] md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[120px]">Unidade</TableHead>
-                      <TableHead>Morador responsável</TableHead>
-                      <TableHead>Status ({MONTH_NAMES_PT_SHORT[currentMonth - 1]}/{currentYear})</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {moradoresPorBloco.map(([bloco, lista]) => {
-                      const open = openBlocos.has(bloco);
-                      return (
-                        <Fragment key={bloco}>
-                          <TableRow
-                            onClick={() => toggleBloco(bloco)}
-                            className="cursor-pointer bg-secondary/40 hover:bg-secondary/60"
-                            aria-expanded={open}
-                          >
-                            <TableCell colSpan={4} className="font-medium">
-                              <div className="flex items-center gap-2">
-                                <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
-                                Bloco {bloco}{" "}
-                                <span className="font-normal text-muted-foreground">
-                                  · {lista.length} {lista.length === 1 ? "unidade" : "unidades"}
-                                </span>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                          {open &&
-                            lista.map((m) => {
-                              const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
-                              const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
-                              return (
-                                <TableRow key={m.id} onClick={() => setHistoryUnitId(m.id)} className="cursor-pointer">
-                                  <TableCell className="font-mono font-semibold">{m.unidade}</TableCell>
-                                  <TableCell>
-                                    {m.nome_completo}
-                                    {m.role && m.role !== "morador" && (
-                                      <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                                        {ROLE_LABEL[m.role]}
-                                      </span>
-                                    )}
-                                    {m.titulo_funcao && (
-                                      <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
-                                        {m.titulo_funcao}
-                                      </span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
-                                      {uiStatus}
-                                    </span>
-                                  </TableCell>
-                                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                    <div className="flex justify-end gap-2">
-                                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
-                                        <History className="h-3.5 w-3.5" /> Histórico
-                                      </Button>
-                                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
-                                        <Pencil className="h-3.5 w-3.5" /> Editar
-                                      </Button>
-                                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setFuncaoMorador(m)}>
-                                        <ShieldCheck className="h-3.5 w-3.5" /> Gerenciar função
-                                      </Button>
-                                      {isAdminAgencia && (
-                                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setPromoteMoradorId(m.id)}>
-                                          <ShieldCheck className="h-3.5 w-3.5" /> Promover
-                                        </Button>
-                                      )}
-                                      {(!m.role || m.role === "morador") && (
-                                      <Button variant="outline" size="sm" className="h-9 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteMoradorId(m.id)}>
-                                        <Trash2 className="h-3.5 w-3.5" /> Excluir
-                                      </Button>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                        </Fragment>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      <PaymentHistoryDialog
-        moradorId={historyUnitId}
-        moradores={moradores}
-        historico={historico}
-        year={currentYear}
-        onClose={() => setHistoryUnitId(null)}
-        onChange={handleHistoricoChange}
+      <UnidadesCobrancasSection
+        profile={profile}
+        canView
+        canEditFinanceiro
+        canManageMoradores
+        canDeleteMorador
+        canCadastrarFuncionario
+        canManagePermissoes
+        isAdminAgencia={isAdminAgencia}
+        onDataLoaded={(h, m) => { setHistorico(h); setMoradores(m); }}
       />
-
-      {/* Votações */}
-      <section className="bg-background py-16">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-                <Vote className="h-3.5 w-3.5" /> Votações
-              </span>
-              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Resultados em tempo real</h2>
-              <p className="mt-4 text-muted-foreground">
-                Visível apenas para a síndica. Os moradores não enxergam os parciais.
-              </p>
-            </div>
-            <Button onClick={() => setNewPautaOpen(true)} className="rounded-full">
-              <Plus className="h-4 w-4" /> Nova pauta
-            </Button>
-          </div>
-
-
-          <Tabs defaultValue="ativas" className="mt-8">
-            <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-full bg-card p-1.5 shadow-[var(--shadow-soft)] sm:w-auto sm:flex-nowrap">
-              <TabsTrigger value="ativas" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">Ativas</TabsTrigger>
-              <TabsTrigger value="encerradas" className="rounded-full px-3 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-5 sm:py-2 sm:text-sm">
-                <History className="h-3.5 w-3.5" /> Encerradas
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="ativas" className="mt-6 space-y-4">
-              {pautasLoading ? (
-                <LoadingBlock label="Carregando pautas…" />
-              ) : pautas.length === 0 ? (
-                <EmptyState>Nenhuma pauta ativa no momento.</EmptyState>
-              ) : (
-                pautas.map((p) => (
-                  <PollAdminCard
-                    key={p.id}
-                    pauta={p}
-                    expanded={expandedAudit === p.id}
-                    onToggleAudit={() => setExpandedAudit((cur) => (cur === p.id ? null : p.id))}
-                    onFinalize={() => setEncerrarPautaId(p.id)}
-                    onDelete={() => setDeletePautaId(p.id)}
-                  />
-                ))
-              )}
-            </TabsContent>
-
-            <TabsContent value="encerradas" className="mt-6 space-y-4">
-              {pautasEncerradasLoading ? (
-                <LoadingBlock label="Carregando histórico…" />
-              ) : pautasEncerradas.length === 0 ? (
-                <EmptyState>Nenhuma votação encerrada ainda.</EmptyState>
-              ) : (
-                pautasEncerradas.map((p) => (
-                  <PollAdminCard
-                    key={p.id}
-                    pauta={p}
-                    expanded={expandedAudit === p.id}
-                    onToggleAudit={() => setExpandedAudit((cur) => (cur === p.id ? null : p.id))}
-                    onDelete={() => setDeletePautaId(p.id)}
-                    encerrada
-                  />
-                ))
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
-      </section>
+      <VotacoesAdminSection condominioId={profile.condominio_id} canManage />
 
       {/* Reservas */}
       <div id="admin-reservas">
@@ -2574,48 +2877,7 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
         />
       </div>
 
-      {/* Obras admin */}
-      <section className="bg-background py-16">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
-                <Hammer className="h-3.5 w-3.5" /> Obras
-              </span>
-              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Andamento das obras</h2>
-              <p className="mt-4 text-muted-foreground">
-                Publique atualizações e ajuste o progresso das obras em andamento.
-              </p>
-            </div>
-            <Button onClick={() => setNewObraOpen(true)} className="rounded-full">
-              <Plus className="h-4 w-4" /> Nova obra
-            </Button>
-          </div>
-
-
-          {obrasLoading ? (
-            <div className="mt-10"><LoadingBlock label="Carregando obras…" /></div>
-          ) : (
-            <>
-              <div className="mt-10">
-                <ObrasTabs obras={obras} admin onEdit={setEditObra} onDelete={(o) => setDeleteObraId(o.id)} onChanged={loadObras} />
-              </div>
-              <div className="mt-10 space-y-4">
-                <h3 className="font-display text-lg font-semibold">Publicar atualização</h3>
-                {obras.filter((o) => o.status === "em_andamento").length === 0 ? (
-                  <EmptyState>Nenhuma obra em andamento para atualizar.</EmptyState>
-                ) : (
-                  obras
-                    .filter((o) => o.status === "em_andamento")
-                    .map((o) => (
-                      <ObraUpdateForm key={o.id} obra={o} onSaved={loadObras} />
-                    ))
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </section>
+      <ObrasAdminSection condominioId={profile.condominio_id} canManage />
 
       {/* Documentos admin */}
       <div id="admin-classificados">
@@ -2650,74 +2912,11 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
       </footer>
 
 
-      <NewMoradorDialog
-        open={newMoradorOpen}
-        onOpenChange={setNewMoradorOpen}
-        condominioId={profile.condominio_id}
-        onCreated={loadFinanceiro}
-      />
-      <NewFuncionarioDialog
-        open={newFuncionarioOpen}
-        onOpenChange={setNewFuncionarioOpen}
-        condominioId={profile.condominio_id}
-      />
-      <NewObraDialog
-        open={newObraOpen}
-        onOpenChange={setNewObraOpen}
-        condominioId={profile.condominio_id}
-        onCreated={loadObras}
-      />
-      <NewPautaDialog
-        open={newPautaOpen}
-        onOpenChange={setNewPautaOpen}
-        condominioId={profile.condominio_id}
-        onCreated={loadPautas}
-      />
-      <EditObraDialog
-        obra={editObra}
-        onOpenChange={(v) => { if (!v) setEditObra(null); }}
-        onSaved={loadObras}
-      />
       <BlockDateDialog
         open={blockOpen}
         onOpenChange={setBlockOpen}
         profile={profile}
         onCreated={loadReservas}
-      />
-      <EditMoradorDialog
-        morador={editMorador}
-        onOpenChange={(v) => { if (!v) setEditMorador(null); }}
-        onSaved={loadFinanceiro}
-      />
-      <ConfirmDeleteMoradorDialog
-        open={deleteMoradorId !== null}
-        onOpenChange={(v) => { if (!v) setDeleteMoradorId(null); }}
-        onConfirm={handleDeleteMorador}
-      />
-      <ConfirmPromoteMoradorDialog
-        open={promoteMoradorId !== null}
-        onOpenChange={(v) => { if (!v) setPromoteMoradorId(null); }}
-        onConfirm={handlePromoteMorador}
-      />
-      <FuncaoPermissoesDialog
-        morador={funcaoMorador}
-        onOpenChange={(v) => { if (!v) setFuncaoMorador(null); }}
-        onSaved={loadFinanceiro}
-      />
-      <ConfirmEncerrarPautaDialog
-        open={encerrarPautaId !== null}
-        onOpenChange={(v) => { if (!v) setEncerrarPautaId(null); }}
-        onConfirm={handleEncerrarPauta}
-      />
-      <ConfirmDeletePautaDialog
-        open={deletePautaId !== null}
-        onOpenChange={(v) => { if (!v) setDeletePautaId(null); }}
-        onConfirm={handleDeletePauta}
-      />
-      <ConfirmDeleteObraDialog
-        open={deleteObraId !== null}
-        onOpenChange={(v) => { if (!v) setDeleteObraId(null); }}
-        onConfirm={handleDeleteObra}
       />
     </>
   );
@@ -2821,10 +3020,12 @@ function NewFuncionarioDialog({
   open,
   onOpenChange,
   condominioId,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   condominioId: string;
+  onCreated: () => void;
 }) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -2861,6 +3062,7 @@ function NewFuncionarioDialog({
       toast.success("Funcionário cadastrado! Senha provisória: Mudar@123");
       reset();
       onOpenChange(false);
+      onCreated();
     } catch (err) {
       console.error(err);
       toast.error(
@@ -3789,6 +3991,7 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obra
   const [items, setItems] = useState<ObraAtualizacaoRow[] | null>(null);
   const [active, setActive] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [zoomOpen, setZoomOpen] = useState(false);
 
   const reload = useCallback(() => {
     fetchAtualizacoesObra(obraId).then((r) => {
@@ -3835,7 +4038,17 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obra
 
       <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-secondary">
         {current.foto_url ? (
-          <img src={current.foto_url} alt={current.descricao ?? ""} className="h-full w-full object-cover" />
+          <button
+            type="button"
+            onClick={() => setZoomOpen(true)}
+            className="group absolute inset-0 h-full w-full cursor-zoom-in"
+            aria-label="Ver foto em tela cheia"
+          >
+            <img src={current.foto_url} alt={current.descricao ?? ""} className="h-full w-full object-cover" />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/30">
+              <Maximize2 className="h-6 w-6 text-white opacity-0 transition group-hover:opacity-100" />
+            </span>
+          </button>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
             <ImageIcon className="h-8 w-8 opacity-70" />
@@ -3906,6 +4119,19 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obra
           ))}
         </div>
       )}
+
+      <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
+        <DialogContent className="flex h-screen w-screen max-w-none items-center justify-center border-0 bg-black/95 p-0">
+          <DialogTitle className="sr-only">Foto da obra em tela cheia</DialogTitle>
+          {current.foto_url && (
+            <img
+              src={current.foto_url}
+              alt={current.descricao ?? ""}
+              className="max-h-full max-w-full object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -4709,31 +4935,33 @@ function EditMoradorDialog({
   useEffect(() => {
     if (morador) {
       setNome(morador.nome_completo);
-      const [b, apto] = morador.unidade.split("-");
+      const [b, apto] = (morador.unidade ?? "").split("-");
       setBloco(b === "B" ? "B" : "A");
       setApartamento(apto ?? "");
     }
   }, [morador]);
 
+  const isFuncionario = morador?.unidade == null;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!morador) return;
-    if (!nome.trim() || !apartamento.trim()) {
-      toast.error("Preencha nome e apartamento.");
+    if (!nome.trim() || (!isFuncionario && !apartamento.trim())) {
+      toast.error(isFuncionario ? "Preencha o nome." : "Preencha nome e apartamento.");
       return;
     }
     setSaving(true);
     try {
       await atualizarMorador(morador.id, {
         nome_completo: nome.trim(),
-        unidade: `${bloco}-${apartamento.trim()}`,
+        unidade: isFuncionario ? null : `${bloco}-${apartamento.trim()}`,
       });
-      toast.success("Morador atualizado.");
+      toast.success(isFuncionario ? "Funcionário atualizado." : "Morador atualizado.");
       onOpenChange(false);
       onSaved();
     } catch (err) {
       console.error(err);
-      toast.error("Erro ao atualizar morador.");
+      toast.error("Erro ao atualizar.");
     } finally {
       setSaving(false);
     }
@@ -4743,30 +4971,36 @@ function EditMoradorDialog({
     <Dialog open={morador !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl">Editar morador</DialogTitle>
-          <DialogDescription>Atualize nome e unidade.</DialogDescription>
+          <DialogTitle className="font-display text-2xl">
+            {isFuncionario ? "Editar funcionário" : "Editar morador"}
+          </DialogTitle>
+          <DialogDescription>
+            {isFuncionario ? "Atualize o nome." : "Atualize nome e unidade."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="em-nome">Nome completo</Label>
             <Input id="em-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="em-bloco">Bloco</Label>
-              <Select value={bloco} onValueChange={(v) => setBloco(v as "A" | "B")}>
-                <SelectTrigger id="em-bloco"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="A">A</SelectItem>
-                  <SelectItem value="B">B</SelectItem>
-                </SelectContent>
-              </Select>
+          {!isFuncionario && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="em-bloco">Bloco</Label>
+                <Select value={bloco} onValueChange={(v) => setBloco(v as "A" | "B")}>
+                  <SelectTrigger id="em-bloco"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="A">A</SelectItem>
+                    <SelectItem value="B">B</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="em-apto">Apartamento</Label>
+                <Input id="em-apto" value={apartamento} onChange={(e) => setApartamento(e.target.value)} placeholder="Ex.: 301" required />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="em-apto">Apartamento</Label>
-              <Input id="em-apto" value={apartamento} onChange={(e) => setApartamento(e.target.value)} placeholder="Ex.: 301" required />
-            </div>
-          </div>
+          )}
           <Button type="submit" className="w-full rounded-full" disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
             Salvar
@@ -4808,21 +5042,26 @@ function ConfirmDeleteObraDialog({
 }
 
 function ConfirmDeleteMoradorDialog({
-  open,
+  morador,
   onOpenChange,
   onConfirm,
 }: {
-  open: boolean;
+  morador: MoradorInfo | null;
   onOpenChange: (v: boolean) => void;
   onConfirm: () => void;
 }) {
+  const isSindica = morador?.role === "sindica";
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={morador !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl">Excluir morador</DialogTitle>
+          <DialogTitle className="font-display text-2xl">
+            {isSindica ? "Excluir síndica" : "Excluir morador"}
+          </DialogTitle>
           <DialogDescription>
-            Tem certeza que deseja remover este morador? Esta ação não pode ser desfeita.
+            {isSindica
+              ? `Tem certeza que deseja remover ${morador?.nome_completo} do cargo de síndica? Ela perde o acesso ao painel administrativo imediatamente. Esta ação não pode ser desfeita.`
+              : "Tem certeza que deseja remover este morador? Esta ação não pode ser desfeita."}
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-end gap-2">
@@ -4919,14 +5158,31 @@ function FuncaoPermissoesDialog({
     }
   };
 
+  const excluirFuncao = async () => {
+    if (!morador) return;
+    if (!confirm(`Remover a função de ${morador.nome_completo}? Ela(e) perde o título e todas as permissões, mas continua cadastrada(o).`)) return;
+    setSaving(true);
+    try {
+      await definirPermissoes(morador.id, [], null);
+      toast.success("Função removida.");
+      onOpenChange(false);
+      onSaved();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao remover função.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Dialog open={morador !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">Gerenciar função</DialogTitle>
           <DialogDescription>
-            {morador?.nome_completo} continua morador — as permissões abaixo dão acesso extra,
-            sem virar síndica/admin de verdade.
+            {morador?.nome_completo} continua {morador?.unidade == null ? "funcionário" : "morador"} —
+            as permissões abaixo dão acesso extra, sem virar síndica/admin de verdade.
           </DialogDescription>
         </DialogHeader>
         {loading ? (
@@ -4956,10 +5212,22 @@ function FuncaoPermissoesDialog({
                 ))}
               </div>
             </div>
-            <Button onClick={submit} disabled={saving} className="w-full rounded-full">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-              Salvar
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button onClick={submit} disabled={saving} className="w-full rounded-full">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                Salvar
+              </Button>
+              {(tituloFuncao.trim() || selecionadas.size > 0) && (
+                <Button
+                  variant="outline"
+                  onClick={excluirFuncao}
+                  disabled={saving}
+                  className="w-full rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+                >
+                  <Trash2 className="h-4 w-4" /> Excluir função
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </DialogContent>
