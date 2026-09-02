@@ -149,6 +149,7 @@ import {
   type DestinatarioAlerta,
   fetchDestinatariosAlertas,
   definirRecebeAlertas,
+  fetchRecebeAlertas,
   type ReservaRow,
   type ReservaComMorador,
   type HistoricoRow,
@@ -5217,6 +5218,7 @@ function FuncaoPermissoesDialog({
 }) {
   const [tituloFuncao, setTituloFuncao] = useState("");
   const [selecionadas, setSelecionadas] = useState<Set<Permissao>>(new Set());
+  const [recebeAlertas, setRecebeAlertas] = useState(true);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -5224,8 +5226,11 @@ function FuncaoPermissoesDialog({
     if (!morador) return;
     setTituloFuncao(morador.titulo_funcao ?? "");
     setLoading(true);
-    fetchPermissoesDoProfile(morador.id)
-      .then((perms) => setSelecionadas(new Set(perms)))
+    Promise.all([fetchPermissoesDoProfile(morador.id), fetchRecebeAlertas(morador.id)])
+      .then(([perms, alertas]) => {
+        setSelecionadas(new Set(perms));
+        setRecebeAlertas(alertas);
+      })
       .catch((e) => { console.error(e); toast.error("Erro ao carregar permissões."); })
       .finally(() => setLoading(false));
   }, [morador]);
@@ -5243,7 +5248,10 @@ function FuncaoPermissoesDialog({
     if (!morador) return;
     setSaving(true);
     try {
-      await definirPermissoes(morador.id, Array.from(selecionadas), tituloFuncao.trim() || null);
+      await Promise.all([
+        definirPermissoes(morador.id, Array.from(selecionadas), tituloFuncao.trim() || null),
+        definirRecebeAlertas(morador.id, recebeAlertas),
+      ]);
       toast.success("Função e permissões atualizadas.");
       onOpenChange(false);
       onSaved();
@@ -5308,6 +5316,16 @@ function FuncaoPermissoesDialog({
                   </label>
                 ))}
               </div>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+              <div className="min-w-0">
+                <Label htmlFor="fp-alertas">Receber aviso por e-mail</Label>
+                <p className="text-xs text-muted-foreground">
+                  Manda e-mail quando entra visitante/reserva pendente pra aprovar (só vale se
+                  tiver permissão de aprovar visitantes/reservas, ou for síndica/admin_agencia).
+                </p>
+              </div>
+              <Switch id="fp-alertas" checked={recebeAlertas} onCheckedChange={setRecebeAlertas} />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button onClick={submit} disabled={saving} className="w-full rounded-full">

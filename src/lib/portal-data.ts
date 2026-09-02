@@ -250,6 +250,16 @@ export async function definirRecebeAlertas(profileId: string, receber: boolean) 
   if (error) throw error;
 }
 
+export async function fetchRecebeAlertas(profileId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("receber_alertas_pendencia")
+    .eq("id", profileId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.receber_alertas_pendencia as boolean | undefined) ?? true;
+}
+
 // ---------- PAUTAS / VOTOS ----------
 
 export async function fetchPautasAtivas(condominioId: string) {
