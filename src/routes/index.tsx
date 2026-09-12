@@ -3954,7 +3954,7 @@ function ObraTimeline({
             </div>
           </div>
 
-          {withUpdates && <ObraUpdatesGallery obraId={item.id} accent={accent} admin={admin} onChanged={onChanged} />}
+          {withUpdates && <ObraUpdatesGallery obraId={item.id} accent={accent} admin={admin} progressoAtual={item.progresso_atual} onChanged={onChanged} />}
 
           {admin && (onEdit || onDelete) && (
             <div className="mt-5 flex flex-wrap gap-2">
@@ -4095,11 +4095,15 @@ function ZoomableImage({ src, alt }: { src: string; alt?: string }) {
   );
 }
 
-function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obraId: string; accent: string; admin?: boolean; onChanged?: () => void }) {
+function ObraUpdatesGallery({ obraId, accent, admin = false, progressoAtual = 100, onChanged }: { obraId: string; accent: string; admin?: boolean; progressoAtual?: number; onChanged?: () => void }) {
   const [items, setItems] = useState<ObraAtualizacaoRow[] | null>(null);
   const [active, setActive] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [zoomOpen, setZoomOpen] = useState(false);
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [newPreview, setNewPreview] = useState<string | null>(null);
+  const [newDesc, setNewDesc] = useState("");
+  const [addingPhoto, setAddingPhoto] = useState(false);
 
   const reload = useCallback(() => {
     fetchAtualizacoesObra(obraId).then((r) => {
@@ -4126,11 +4130,73 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obra
     }
   };
 
+  const onPickNewFile = (f: File | null) => {
+    setNewFile(f);
+    setNewPreview(f ? URL.createObjectURL(f) : null);
+  };
+
+  const handleAddPhoto = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFile) return toast.error("Selecione uma foto.");
+    setAddingPhoto(true);
+    try {
+      const fotoUrl = await uploadObraFoto(obraId, newFile);
+      await inserirAtualizacaoObra({
+        obra_id: obraId,
+        descricao: newDesc.trim(),
+        progresso: progressoAtual,
+        foto_url: fotoUrl,
+      });
+      toast.success("Foto adicionada.");
+      setNewFile(null);
+      setNewPreview(null);
+      setNewDesc("");
+      reload();
+      onChanged?.();
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao adicionar foto.");
+    } finally {
+      setAddingPhoto(false);
+    }
+  };
+
+  const addPhotoForm = admin && (
+    <form onSubmit={handleAddPhoto} className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+      <label
+        htmlFor={`add-foto-${obraId}`}
+        className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/40 px-3 text-xs font-medium text-muted-foreground transition hover:bg-secondary"
+      >
+        <Upload className="h-3.5 w-3.5" />
+        {newFile ? newFile.name.slice(0, 20) : "Selecionar foto"}
+      </label>
+      <input
+        id={`add-foto-${obraId}`}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => onPickNewFile(e.target.files?.[0] ?? null)}
+      />
+      {newPreview && <img src={newPreview} alt="Prévia" className="h-9 w-9 rounded-md object-cover" />}
+      <Input
+        value={newDesc}
+        onChange={(e) => setNewDesc(e.target.value)}
+        placeholder="Descrição (opcional)"
+        className="h-9 min-w-[140px] flex-1 text-xs"
+        maxLength={200}
+      />
+      <Button type="submit" size="sm" className="h-9 rounded-full" disabled={!newFile || addingPhoto}>
+        {addingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Adicionar foto
+      </Button>
+    </form>
+  );
+
   if (!items) return <div className="mt-6"><Skeleton className="h-32 w-full rounded-xl" /></div>;
   if (items.length === 0) {
     return (
-      <div className="mt-6 rounded-xl border border-dashed border-border bg-secondary/30 p-4 text-center text-xs text-muted-foreground">
-        Sem atualizações publicadas ainda.
+      <div className="mt-6 rounded-xl border border-dashed border-border bg-secondary/30 p-4">
+        <p className="text-center text-xs text-muted-foreground">Sem atualizações publicadas ainda.</p>
+        {addPhotoForm}
       </div>
     );
   }
@@ -4227,6 +4293,8 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obra
           ))}
         </div>
       )}
+
+      {addPhotoForm}
 
       <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
         <DialogContent className="flex h-screen w-screen max-w-none items-center justify-center border-0 bg-black/95 p-0 [&>button]:h-9 [&>button]:w-9 [&>button]:rounded-full [&>button]:bg-black/60 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-black/80 [&>button_svg]:h-5 [&>button_svg]:w-5">
