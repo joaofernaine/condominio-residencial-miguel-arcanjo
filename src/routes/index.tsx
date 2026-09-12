@@ -2675,23 +2675,9 @@ function ObrasAdminSection({ condominioId, canManage }: { condominioId: string; 
           {obrasLoading ? (
             <div className="mt-10"><LoadingBlock label="Carregando obras…" /></div>
           ) : (
-            <>
-              <div className="mt-10">
-                <ObrasTabs obras={obras} admin onEdit={setEditObra} onDelete={(o) => setDeleteObraId(o.id)} onChanged={loadObras} />
-              </div>
-              <div className="mt-10 space-y-4">
-                <h3 className="font-display text-lg font-semibold">Publicar atualização</h3>
-                {obras.filter((o) => o.status === "em_andamento").length === 0 ? (
-                  <EmptyState>Nenhuma obra em andamento para atualizar.</EmptyState>
-                ) : (
-                  obras
-                    .filter((o) => o.status === "em_andamento")
-                    .map((o) => (
-                      <ObraUpdateForm key={o.id} obra={o} onSaved={loadObras} />
-                    ))
-                )}
-              </div>
-            </>
+            <div className="mt-10">
+              <ObrasTabs obras={obras} admin onEdit={setEditObra} onDelete={(o) => setDeleteObraId(o.id)} onChanged={loadObras} />
+            </div>
           )}
         </div>
       </section>
@@ -4103,7 +4089,10 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, progressoAtual = 10
   const [newFile, setNewFile] = useState<File | null>(null);
   const [newPreview, setNewPreview] = useState<string | null>(null);
   const [newDesc, setNewDesc] = useState("");
+  const [newProgresso, setNewProgresso] = useState(progressoAtual);
   const [addingPhoto, setAddingPhoto] = useState(false);
+
+  useEffect(() => { setNewProgresso(progressoAtual); }, [progressoAtual]);
 
   const reload = useCallback(() => {
     fetchAtualizacoesObra(obraId).then((r) => {
@@ -4138,13 +4127,14 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, progressoAtual = 10
   const handleAddPhoto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFile) return toast.error("Selecione uma foto.");
+    if (newProgresso < 0 || newProgresso > 100) return toast.error("Progresso deve estar entre 0 e 100.");
     setAddingPhoto(true);
     try {
       const fotoUrl = await uploadObraFoto(obraId, newFile);
       await inserirAtualizacaoObra({
         obra_id: obraId,
         descricao: newDesc.trim(),
-        progresso: progressoAtual,
+        progresso: newProgresso,
         foto_url: fotoUrl,
       });
       toast.success("Foto adicionada.");
@@ -4185,6 +4175,18 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, progressoAtual = 10
         className="h-9 min-w-[140px] flex-1 text-xs"
         maxLength={200}
       />
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="number"
+          min={0}
+          max={100}
+          value={newProgresso}
+          onChange={(e) => setNewProgresso(Number(e.target.value))}
+          className="h-9 w-16 text-xs"
+          aria-label="Progresso (%)"
+        />
+        <span className="text-xs font-semibold text-muted-foreground">%</span>
+      </div>
       <Button type="submit" size="sm" className="h-9 rounded-full" disabled={!newFile || addingPhoto}>
         {addingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Adicionar foto
       </Button>
@@ -4303,101 +4305,6 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, progressoAtual = 10
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function ObraUpdateForm({ obra, onSaved }: { obra: ObraRow; onSaved: () => void }) {
-  const [descricao, setDescricao] = useState("");
-  const [progresso, setProgresso] = useState<number>(obra.progresso_atual);
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const onPickFile = (f: File | null) => {
-    setFile(f);
-    setPreview(f ? URL.createObjectURL(f) : null);
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!descricao.trim()) return toast.error("Descreva a atualização.");
-    if (progresso < 0 || progresso > 100) return toast.error("Progresso deve estar entre 0 e 100.");
-    setSubmitting(true);
-    try {
-      let fotoUrl: string | null = null;
-      if (file) {
-        try {
-          fotoUrl = await uploadObraFoto(obra.id, file);
-        } catch (upErr) {
-          console.error(upErr);
-          toast.error("Erro ao enviar a foto.");
-          setSubmitting(false);
-          return;
-        }
-      }
-      await inserirAtualizacaoObra({
-        obra_id: obra.id,
-        descricao: descricao.trim(),
-        progresso,
-        foto_url: fotoUrl,
-      });
-      toast.success("Atualização publicada.");
-      setDescricao("");
-      setFile(null);
-      setPreview(null);
-      onSaved();
-    } catch (err) {
-      console.error(err);
-      toast.error("Erro ao publicar atualização.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form onSubmit={submit} className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="font-semibold">{obra.titulo}</h4>
-        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
-          atual: {obra.progresso_atual}%
-        </span>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_120px_1fr]">
-        <div>
-          <Label>Descrição</Label>
-          <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex: fundação concluída" className="mt-1 h-10" maxLength={200} />
-        </div>
-        <div>
-          <Label>Progresso (%)</Label>
-          <Input type="number" min={0} max={100} value={progresso} onChange={(e) => setProgresso(Number(e.target.value))} className="mt-1 h-10" />
-        </div>
-        <div>
-          <Label htmlFor={`foto-${obra.id}`}>Foto (opcional)</Label>
-          <div className="mt-1 flex items-center gap-2">
-            <label
-              htmlFor={`foto-${obra.id}`}
-              className="inline-flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-secondary/40 px-3 text-xs font-medium text-muted-foreground transition hover:bg-secondary"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              {file ? file.name.slice(0, 22) : "Selecionar imagem"}
-            </label>
-            <input
-              id={`foto-${obra.id}`}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-            />
-            {preview && (
-              <img src={preview} alt="Prévia" className="h-10 w-10 rounded-md object-cover" />
-            )}
-          </div>
-        </div>
-      </div>
-      <Button type="submit" size="sm" className="mt-4 rounded-full" disabled={submitting}>
-        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Publicar atualização
-      </Button>
-    </form>
   );
 }
 
