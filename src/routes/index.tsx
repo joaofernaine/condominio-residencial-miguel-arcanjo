@@ -2681,11 +2681,11 @@ function ObrasAdminSection({ condominioId, canManage }: { condominioId: string; 
               </div>
               <div className="mt-10 space-y-4">
                 <h3 className="font-display text-lg font-semibold">Publicar atualização</h3>
-                {obras.filter((o) => o.status === "em_andamento" || o.status === "concluido").length === 0 ? (
-                  <EmptyState>Nenhuma obra em andamento ou concluída para atualizar.</EmptyState>
+                {obras.filter((o) => o.status === "em_andamento").length === 0 ? (
+                  <EmptyState>Nenhuma obra em andamento para atualizar.</EmptyState>
                 ) : (
                   obras
-                    .filter((o) => o.status === "em_andamento" || o.status === "concluido")
+                    .filter((o) => o.status === "em_andamento")
                     .map((o) => (
                       <ObraUpdateForm key={o.id} obra={o} onSaved={loadObras} />
                     ))
