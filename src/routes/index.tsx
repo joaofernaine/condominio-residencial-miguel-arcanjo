@@ -2681,11 +2681,11 @@ function ObrasAdminSection({ condominioId, canManage }: { condominioId: string; 
               </div>
               <div className="mt-10 space-y-4">
                 <h3 className="font-display text-lg font-semibold">Publicar atualização</h3>
-                {obras.filter((o) => o.status === "em_andamento").length === 0 ? (
-                  <EmptyState>Nenhuma obra em andamento para atualizar.</EmptyState>
+                {obras.filter((o) => o.status === "em_andamento" || o.status === "concluido").length === 0 ? (
+                  <EmptyState>Nenhuma obra em andamento ou concluída para atualizar.</EmptyState>
                 ) : (
                   obras
-                    .filter((o) => o.status === "em_andamento")
+                    .filter((o) => o.status === "em_andamento" || o.status === "concluido")
                     .map((o) => (
                       <ObraUpdateForm key={o.id} obra={o} onSaved={loadObras} />
                     ))
@@ -3900,7 +3900,7 @@ function ObrasTabs({
       </TabsList>
 
       <TabsContent value="completed" className="mt-10">
-        {completed.length === 0 ? <EmptyState>Nenhuma obra concluída.</EmptyState> : <ObraTimeline items={completed} icon={CheckCircle2} accent="var(--sage)" admin={admin} onEdit={onEdit} onDelete={onDelete} onChanged={onChanged} />}
+        {completed.length === 0 ? <EmptyState>Nenhuma obra concluída.</EmptyState> : <ObraTimeline items={completed} icon={CheckCircle2} accent="var(--sage)" withUpdates admin={admin} onEdit={onEdit} onDelete={onDelete} onChanged={onChanged} />}
       </TabsContent>
       <TabsContent value="inProgress" className="mt-10">
         {inProgress.length === 0 ? <EmptyState>Nenhuma obra em andamento.</EmptyState> : <ObraTimeline items={inProgress} icon={Hammer} accent="var(--gold)" withUpdates admin={admin} onEdit={onEdit} onDelete={onDelete} onChanged={onChanged} />}
@@ -3987,6 +3987,111 @@ function ObraTimeline({
         </li>
       ))}
     </ol>
+  );
+}
+
+function ZoomableImage({ src, alt }: { src: string; alt?: string }) {
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ x: number; y: number; startPos: { x: number; y: number } } | null>(null);
+  const pinchRef = useRef<{ dist: number; scale: number } | null>(null);
+
+  useEffect(() => {
+    setScale(1);
+    setPos({ x: 0, y: 0 });
+  }, [src]);
+
+  const clampScale = (s: number) => Math.min(4, Math.max(1, s));
+
+  const applyScale = (next: number) => {
+    const clamped = clampScale(next);
+    setScale(clamped);
+    if (clamped === 1) setPos({ x: 0, y: 0 });
+  };
+
+  const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    applyScale(scale - e.deltaY * 0.0015 * scale);
+  };
+
+  const onDoubleClick = () => {
+    if (scale > 1) {
+      setScale(1);
+      setPos({ x: 0, y: 0 });
+    } else {
+      applyScale(2.5);
+    }
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (scale <= 1) return;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { x: e.clientX, y: e.clientY, startPos: pos };
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.x;
+    const dy = e.clientY - dragRef.current.y;
+    setPos({ x: dragRef.current.startPos.x + dx, y: dragRef.current.startPos.y + dy });
+  };
+
+  const onPointerUp = () => {
+    dragRef.current = null;
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY,
+      );
+      pinchRef.current = { dist, scale };
+    }
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && pinchRef.current) {
+      e.preventDefault();
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY,
+      );
+      applyScale(pinchRef.current.scale * (dist / pinchRef.current.dist));
+    }
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) pinchRef.current = null;
+  };
+
+  return (
+    <div
+      className="relative flex h-full w-full touch-none items-center justify-center overflow-hidden"
+      onWheel={onWheel}
+      onDoubleClick={onDoubleClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerUp}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      <img
+        src={src}
+        alt={alt ?? ""}
+        draggable={false}
+        className="max-h-full max-w-full select-none object-contain"
+        style={{
+          transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+          cursor: scale > 1 ? "grab" : "zoom-in",
+        }}
+      />
+      <span className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-[11px] text-white backdrop-blur">
+        Dê zoom com scroll/pinça, ou toque duas vezes
+      </span>
+    </div>
   );
 }
 
@@ -4126,13 +4231,7 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obra
       <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
         <DialogContent className="flex h-screen w-screen max-w-none items-center justify-center border-0 bg-black/95 p-0">
           <DialogTitle className="sr-only">Foto da obra em tela cheia</DialogTitle>
-          {current.foto_url && (
-            <img
-              src={current.foto_url}
-              alt={current.descricao ?? ""}
-              className="max-h-full max-w-full object-contain"
-            />
-          )}
+          {current.foto_url && <ZoomableImage src={current.foto_url} alt={current.descricao ?? ""} />}
         </DialogContent>
       </Dialog>
     </div>
