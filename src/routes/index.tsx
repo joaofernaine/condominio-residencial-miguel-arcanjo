@@ -4229,7 +4229,7 @@ function ObraUpdatesGallery({ obraId, accent, admin = false, onChanged }: { obra
       )}
 
       <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
-        <DialogContent className="flex h-screen w-screen max-w-none items-center justify-center border-0 bg-black/95 p-0">
+        <DialogContent className="flex h-screen w-screen max-w-none items-center justify-center border-0 bg-black/95 p-0 [&>button]:h-9 [&>button]:w-9 [&>button]:rounded-full [&>button]:bg-black/60 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-black/80 [&>button_svg]:h-5 [&>button_svg]:w-5">
           <DialogTitle className="sr-only">Foto da obra em tela cheia</DialogTitle>
           {current.foto_url && <ZoomableImage src={current.foto_url} alt={current.descricao ?? ""} />}
         </DialogContent>
