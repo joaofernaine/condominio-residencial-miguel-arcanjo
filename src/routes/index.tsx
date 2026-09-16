@@ -830,6 +830,12 @@ function FirstAccessDialog({
 function PermissionedMoradorView({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
   const [view, setView] = useState<"morador" | "funcao">("funcao");
 
+  // Funcionário puro (sem unidade, ex.: zelador/porteiro) não é morador de
+  // verdade — não tem "Visão Morador" pra alternar, só a função dele.
+  if (!profile.unidade) {
+    return <PermissionedAdminView profile={profile} onLogout={onLogout} toggle={null} />;
+  }
+
   const toggle = (
     <div className="inline-flex items-center overflow-hidden rounded-full border border-input bg-background shadow-sm">
       <button
