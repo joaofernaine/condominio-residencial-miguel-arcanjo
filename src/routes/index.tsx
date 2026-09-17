@@ -1886,12 +1886,12 @@ function FundoCard({
   const [saving, setSaving] = useState(false);
 
   const startEdit = () => {
-    setDraft(value != null ? String(value) : "0");
+    setDraft((value ?? 0).toFixed(2).replace(".", ","));
     setEditing(true);
   };
 
   const save = async () => {
-    const parsed = Number(draft.replace(",", "."));
+    const parsed = Number(draft.replace(/\./g, "").replace(",", "."));
     if (Number.isNaN(parsed) || parsed < 0) {
       toast.error("Digite um valor válido.");
       return;
@@ -1927,19 +1927,25 @@ function FundoCard({
       </div>
       {editing ? (
         <div className="mt-3 flex items-center gap-2">
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            className="h-9"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") save();
-              if (e.key === "Escape") setEditing(false);
-            }}
-          />
+          <div className="relative flex-1">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+              R$
+            </span>
+            <Input
+              type="text"
+              inputMode="decimal"
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="0,00"
+              className="h-9 pl-9"
+              onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") save();
+                if (e.key === "Escape") setEditing(false);
+              }}
+            />
+          </div>
           <Button size="sm" className="h-9 shrink-0 rounded-full" onClick={save} disabled={saving}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
           </Button>
