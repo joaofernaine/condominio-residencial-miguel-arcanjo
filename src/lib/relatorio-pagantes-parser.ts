@@ -26,6 +26,7 @@ export type CobrancaImportada = {
   valorFundoReserva: number;
   valorTaxaCondominio: number;
   valorFundoObras: number;
+  valorCasaZelador: number;
   valorOutros: number;
 };
 
@@ -34,13 +35,14 @@ export type ParseRelatorioResult = {
   linhasNaoReconhecidas: string[];
 };
 
-const LABEL_TO_CATEGORIA: Record<string, "fundoReserva" | "taxaCondominio" | "fundoObras"> = {
+const LABEL_TO_CATEGORIA: Record<string, "fundoReserva" | "taxaCondominio" | "fundoObras" | "casaZelador"> = {
   "Fundo de Reserva": "fundoReserva",
   "Taxa de Condominio": "taxaCondominio",
   "Fundo de Obras": "fundoObras",
+  "Manut. teto casa zelador": "casaZelador",
 };
 
-const LABELS_OUTROS = ["Recebimento de Boleto", "Recebimento de Multa/juro", "Manut. teto casa zelador"];
+const LABELS_OUTROS = ["Recebimento de Boleto", "Recebimento de Multa/juro"];
 
 const IGNORAR_PREFIXOS = [
   "CONDOMÍNIO",
@@ -85,7 +87,7 @@ function reconstruirLinhas(items: LinhaItem[]): string[] {
     .filter(Boolean);
 }
 
-function parseLinhaCobranca(linha: string): Omit<CobrancaImportada, "valorFundoReserva" | "valorTaxaCondominio" | "valorFundoObras" | "valorOutros"> | null {
+function parseLinhaCobranca(linha: string): Omit<CobrancaImportada, "valorFundoReserva" | "valorTaxaCondominio" | "valorFundoObras" | "valorCasaZelador" | "valorOutros"> | null {
   const prefixo = linha.match(/^([A-Za-z0-9]+)-([A-Za-z])\s*\/\s*(.*)$/);
   if (!prefixo) return null;
   const codigoUnidade = prefixo[1];
@@ -129,7 +131,7 @@ function parseLinhaCobranca(linha: string): Omit<CobrancaImportada, "valorFundoR
   };
 }
 
-function parseSubLinha(linha: string): { categoria: "fundoReserva" | "taxaCondominio" | "fundoObras" | "outros"; valor: number } | null {
+function parseSubLinha(linha: string): { categoria: "fundoReserva" | "taxaCondominio" | "fundoObras" | "casaZelador" | "outros"; valor: number } | null {
   const m = linha.match(/^(.+?)\s+([\d.,]+)\s*$/);
   if (!m) return null;
   const label = m[1].trim();
@@ -166,7 +168,7 @@ export async function parseRelatorioPagantes(file: File): Promise<ParseRelatorio
 
     const cobranca = parseLinhaCobranca(linha);
     if (cobranca) {
-      atual = { ...cobranca, valorFundoReserva: 0, valorTaxaCondominio: 0, valorFundoObras: 0, valorOutros: 0 };
+      atual = { ...cobranca, valorFundoReserva: 0, valorTaxaCondominio: 0, valorFundoObras: 0, valorCasaZelador: 0, valorOutros: 0 };
       cobrancas.push(atual);
       continue;
     }
@@ -180,6 +182,7 @@ export async function parseRelatorioPagantes(file: File): Promise<ParseRelatorio
       if (sub.categoria === "fundoReserva") atual.valorFundoReserva += sub.valor;
       else if (sub.categoria === "taxaCondominio") atual.valorTaxaCondominio += sub.valor;
       else if (sub.categoria === "fundoObras") atual.valorFundoObras += sub.valor;
+      else if (sub.categoria === "casaZelador") atual.valorCasaZelador += sub.valor;
       else atual.valorOutros += sub.valor;
       continue;
     }

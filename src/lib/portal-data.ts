@@ -3,7 +3,7 @@
  * Todos os SELECTs são filtrados por `condominio_id` do profile logado.
  */
 import { supabase } from "@/lib/supabase";
-import type { FinancialStatus, ReservationStatus } from "@/lib/mocks";
+import type { ReservationStatus } from "@/lib/mocks";
 
 // ---------- TYPES (banco real) ----------
 
@@ -95,16 +95,6 @@ export type OcupacaoRow = {
   observacoes: string | null;
 };
 
-export type HistoricoRow = {
-  id: string;
-  condominio_id: string;
-  unidade_id: string;
-  ano: number;
-  mes: number; // 1..12
-  status: "pago" | "pendente" | "atrasado";
-  valor: number | null;
-};
-
 export type ObraRow = {
   id: string;
   condominio_id: string;
@@ -129,18 +119,6 @@ export const RESERVA_DB_TO_UI: Record<Exclude<ReservaStatus, "bloqueado">, Reser
   pendente: "Pendente",
   aprovada: "Confirmada",
   recusada: "Recusada",
-};
-
-export const HISTORICO_DB_TO_UI: Record<HistoricoRow["status"], FinancialStatus> = {
-  pago: "Em dia",
-  pendente: "Pendente",
-  atrasado: "Atrasado",
-};
-
-export const HISTORICO_UI_TO_DB: Record<FinancialStatus, HistoricoRow["status"]> = {
-  "Em dia": "pago",
-  Pendente: "pendente",
-  Atrasado: "atrasado",
 };
 
 // ---------- ESPAÇOS RESERVÁVEIS (hardcoded por enquanto) ----------
@@ -373,46 +351,6 @@ export async function recusarReserva(id: string, motivo: string) {
 }
 
 // ---------- HISTÓRICO FINANCEIRO ----------
-
-export async function fetchHistoricoCondominio(condominioId: string) {
-  const { data, error } = await supabase
-    .from("historico_financeiro")
-    .select("*")
-    .eq("condominio_id", condominioId);
-  if (error) throw error;
-  return (data ?? []) as HistoricoRow[];
-}
-
-export async function fetchMeuHistorico(unidadeId: string, ano: number) {
-  const { data, error } = await supabase
-    .from("historico_financeiro")
-    .select("*")
-    .eq("unidade_id", unidadeId)
-    .eq("ano", ano);
-  if (error) throw error;
-  return (data ?? []) as HistoricoRow[];
-}
-
-export async function atualizarHistorico(id: string, status: HistoricoRow["status"]) {
-  const { error } = await supabase
-    .from("historico_financeiro")
-    .update({ status })
-    .eq("id", id);
-  if (error) throw error;
-}
-
-export async function criarHistorico(input: {
-  condominio_id: string;
-  unidade_id: string;
-  ano: number;
-  mes: number;
-  status: HistoricoRow["status"];
-  valor: number;
-}) {
-  const { error } = await supabase.from("historico_financeiro").insert(input);
-  if (error) throw error;
-}
-
 
 export async function fetchMoradoresDoCondominio(condominioId: string) {
   // Lista todo mundo com unidade preenchida (moradores de fato — síndica/
@@ -954,6 +892,7 @@ export type PagamentoImportadoInput = {
   valor_taxa_condominio: number;
   valor_fundo_reserva: number;
   valor_fundo_obras: number;
+  valor_casa_zelador: number;
   valor_outros: number;
   data_credito: string | null;
   importado_por: string;
@@ -993,8 +932,9 @@ export async function fetchNossosNumerosJaImportados(condominioId: string, nosso
 
 /**
  * Confirma a importação: grava as cobranças novas (ignora duplicadas por
- * nosso_numero) e marca `historico_financeiro` como "pago" nas
- * competências cobertas. Não mexe em unidades que não aparecem na leva.
+ * nosso_numero) e incrementa `fundos_saldo` com o total da leva — o
+ * saldo exibido no Financeiro é editável à mão pela síndica, então a
+ * importação soma em cima dele em vez de recalcular do zero.
  */
 export async function confirmarImportacaoPagamentos(
   condominioId: string,
@@ -1007,62 +947,46 @@ export async function confirmarImportacaoPagamentos(
     .upsert(cobrancas, { onConflict: "condominio_id,nosso_numero", ignoreDuplicates: true, count: "exact" });
   if (insertError) throw insertError;
 
-  const competenciasPorUnidade = new Map<string, Set<string>>();
-  for (const c of cobrancas) {
-    const chave = c.unidade_id;
-    const competencia = `${c.competencia_ano}-${c.competencia_mes}`;
-    if (!competenciasPorUnidade.has(chave)) competenciasPorUnidade.set(chave, new Set());
-    competenciasPorUnidade.get(chave)!.add(competencia);
-  }
-
-  const unidadeIds = Array.from(competenciasPorUnidade.keys());
-  const { data: existentes, error: fetchError } = await supabase
-    .from("historico_financeiro")
-    .select("id, unidade_id, ano, mes")
-    .eq("condominio_id", condominioId)
-    .in("unidade_id", unidadeIds);
-  if (fetchError) throw fetchError;
-
-  const existentePorChave = new Map<string, string>();
-  for (const row of existentes ?? []) {
-    existentePorChave.set(`${row.unidade_id}-${row.ano}-${row.mes}`, row.id);
-  }
-
-  const paraAtualizar: string[] = [];
-  const paraCriar: { condominio_id: string; unidade_id: string; ano: number; mes: number; status: "pago"; valor: number }[] = [];
-
-  for (const [unidadeId, competencias] of competenciasPorUnidade) {
-    for (const competencia of competencias) {
-      const [ano, mes] = competencia.split("-").map(Number);
-      const chave = `${unidadeId}-${ano}-${mes}`;
-      const existenteId = existentePorChave.get(chave);
-      const cobranca = cobrancas.find((c) => c.unidade_id === unidadeId && c.competencia_ano === ano && c.competencia_mes === mes);
-      const valor = cobranca
-        ? cobranca.valor_taxa_condominio + cobranca.valor_fundo_reserva + cobranca.valor_fundo_obras + cobranca.valor_outros
-        : 0;
-      if (existenteId) {
-        paraAtualizar.push(existenteId);
-      } else {
-        paraCriar.push({ condominio_id: condominioId, unidade_id: unidadeId, ano, mes, status: "pago", valor });
-      }
-    }
-  }
-
-  if (paraAtualizar.length > 0) {
-    const { error } = await supabase.from("historico_financeiro").update({ status: "pago" }).in("id", paraAtualizar);
-    if (error) throw error;
-  }
-  if (paraCriar.length > 0) {
-    const { error } = await supabase.from("historico_financeiro").insert(paraCriar);
-    if (error) throw error;
-  }
+  const deltas: Record<FundoNome, number> = {
+    reserva: cobrancas.reduce((acc, c) => acc + c.valor_fundo_reserva, 0),
+    obras: cobrancas.reduce((acc, c) => acc + c.valor_fundo_obras, 0),
+    casa_zelador: cobrancas.reduce((acc, c) => acc + c.valor_casa_zelador, 0),
+  };
+  await Promise.all(
+    (Object.entries(deltas) as [FundoNome, number][])
+      .filter(([, delta]) => delta !== 0)
+      .map(([fundo, delta]) =>
+        supabase.rpc("incrementar_fundo_saldo", { p_condominio_id: condominioId, p_fundo: fundo, p_delta: delta }),
+      ),
+  );
 
   return { inseridas: count ?? 0 };
 }
 
-/** Total de Fundo de Obras arrecadado (todas as importações), via função SECURITY DEFINER — não expõe a tabela crua. */
-export async function fetchFundoObrasTotal(condominioId: string) {
-  const { data, error } = await supabase.rpc("fundo_obras_total", { p_condominio_id: condominioId });
+export type FundoNome = "reserva" | "obras" | "casa_zelador";
+
+/** Saldo atual dos 3 fundos do condomínio — editável pela síndica, incrementado pela importação de PDF. */
+export async function fetchFundosSaldo(condominioId: string) {
+  const { data, error } = await supabase
+    .from("fundos_saldo")
+    .select("fundo, valor")
+    .eq("condominio_id", condominioId);
   if (error) throw error;
-  return (data as number) ?? 0;
+  const porFundo = new Map((data ?? []).map((r) => [r.fundo as FundoNome, r.valor as number]));
+  return {
+    reserva: porFundo.get("reserva") ?? 0,
+    obras: porFundo.get("obras") ?? 0,
+    casaZelador: porFundo.get("casa_zelador") ?? 0,
+  };
+}
+
+/** Define o valor de um fundo diretamente (edição manual pela síndica). */
+export async function definirFundoSaldo(condominioId: string, fundo: FundoNome, valor: number, profileId: string) {
+  const { error } = await supabase
+    .from("fundos_saldo")
+    .upsert(
+      { condominio_id: condominioId, fundo, valor, atualizado_por: profileId },
+      { onConflict: "condominio_id,fundo" },
+    );
+  if (error) throw error;
 }

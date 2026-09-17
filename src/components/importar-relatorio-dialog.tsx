@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import {
   confirmarImportacaoPagamentos,
-  fetchFundoObrasTotal,
+  fetchFundosSaldo,
   fetchMoradoresParaImportacao,
   fetchNossosNumerosJaImportados,
   salvarCodigoRelatorioExterno,
@@ -68,7 +68,7 @@ export function ImportarRelatorioDialog({
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [moradores, setMoradores] = useState<Morador[]>([]);
   const [jaImportados, setJaImportados] = useState<Set<string>>(new Set());
-  const [resumo, setResumo] = useState<{ novas: number; fundoObras: number } | null>(null);
+  const [resumo, setResumo] = useState<{ novas: number; fundoReserva: number; fundoObras: number; casaZelador: number } | null>(null);
 
   const reset = () => {
     setEtapa("upload");
@@ -167,6 +167,7 @@ export function ImportarRelatorioDialog({
               valor_taxa_condominio: c.valorTaxaCondominio,
               valor_fundo_reserva: c.valorFundoReserva,
               valor_fundo_obras: c.valorFundoObras,
+              valor_casa_zelador: c.valorCasaZelador,
               valor_outros: c.valorOutros,
               data_credito: brDateToIso(c.dataCredito),
               importado_por: meuProfileId,
@@ -174,8 +175,8 @@ export function ImportarRelatorioDialog({
         );
 
       await confirmarImportacaoPagamentos(condominioId, input);
-      const total = await fetchFundoObrasTotal(condominioId);
-      setResumo({ novas: input.length, fundoObras: total });
+      const saldo = await fetchFundosSaldo(condominioId);
+      setResumo({ novas: input.length, fundoReserva: saldo.reserva, fundoObras: saldo.obras, casaZelador: saldo.casaZelador });
       setEtapa("sucesso");
       onImportado();
     } catch (e) {
@@ -310,8 +311,13 @@ export function ImportarRelatorioDialog({
             <CheckCircle2 className="h-10 w-10 text-[color:var(--sage)]" />
             <p className="font-semibold">Importação concluída</p>
             <p className="text-sm text-muted-foreground">
-              {resumo.novas} {resumo.novas === 1 ? "cobrança nova registrada" : "cobranças novas registradas"}. Fundo de Obras arrecadado no total: <strong>{formatMoeda(resumo.fundoObras)}</strong>.
+              {resumo.novas} {resumo.novas === 1 ? "cobrança nova registrada" : "cobranças novas registradas"}.
             </p>
+            <div className="mt-1 grid gap-1 text-sm text-muted-foreground">
+              <p>Fundo de Reserva no total: <strong className="text-foreground">{formatMoeda(resumo.fundoReserva)}</strong></p>
+              <p>Fundo de Obras no total: <strong className="text-foreground">{formatMoeda(resumo.fundoObras)}</strong></p>
+              <p>Fundo Casa do Zelador no total: <strong className="text-foreground">{formatMoeda(resumo.casaZelador)}</strong></p>
+            </div>
           </div>
         )}
 

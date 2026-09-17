@@ -29,6 +29,7 @@ import {
   Maximize2,
   Phone,
   Pencil,
+  PiggyBank,
   Plus,
 
   Search,
@@ -90,7 +91,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/lib/supabase";
 import {
-  type FinancialStatus,
   type ReservationStatus,
   MONTH_NAMES_PT,
   MONTH_NAMES_PT_SHORT,
@@ -151,7 +151,6 @@ import {
   definirAlertasPreferencia,
   type ReservaRow,
   type ReservaComMorador,
-  type HistoricoRow,
   type ObraRow,
   type ObraAtualizacaoRow,
   type AmenidadeRow,
@@ -160,8 +159,6 @@ import {
   type LoginGuardResult,
   RESERVATION_SPACES,
   RESERVA_DB_TO_UI,
-  HISTORICO_DB_TO_UI,
-  HISTORICO_UI_TO_DB,
   LANDING_CONDOMINIO_ID,
   fetchProfileByAuthUser,
   markFirstAccessComplete,
@@ -174,11 +171,10 @@ import {
   criarReserva,
   aprovarReserva,
   recusarReserva,
-  fetchHistoricoCondominio,
-  fetchMeuHistorico,
-  atualizarHistorico,
   fetchMoradoresDoCondominio,
-  fetchFundoObrasTotal,
+  fetchFundosSaldo,
+  definirFundoSaldo,
+  type FundoNome,
   fetchObras,
   fetchAtualizacoesObra,
   inserirAtualizacaoObra,
@@ -201,7 +197,6 @@ import {
   promoverPara,
   removerMorador,
   fetchOcupacoesCondominio,
-  criarHistorico,
   fetchDocumentos,
   fetchAnosDocumentos,
   fetchTiposDocumentos,
@@ -1431,9 +1426,10 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
   const [obrasLoading, setObrasLoading] = useState(true);
 
   const currentYear = new Date().getFullYear();
-  const [historico, setHistorico] = useState<HistoricoRow[]>([]);
-  const [historicoLoading, setHistoricoLoading] = useState(true);
+  const [fundosLoading, setFundosLoading] = useState(true);
+  const [fundoReservaTotal, setFundoReservaTotal] = useState<number | null>(null);
   const [fundoObrasTotal, setFundoObrasTotal] = useState<number | null>(null);
+  const [fundoCasaZeladorTotal, setFundoCasaZeladorTotal] = useState<number | null>(null);
 
   const loadPautas = useCallback(async () => {
     setPautasLoading(true);
@@ -1481,31 +1477,27 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
     }
   }, [profile.condominio_id]);
 
-  const loadHistorico = useCallback(async () => {
-    setHistoricoLoading(true);
+  const loadFundos = useCallback(async () => {
+    setFundosLoading(true);
     try {
-      setHistorico(await fetchMeuHistorico(profile.id, currentYear));
+      const saldo = await fetchFundosSaldo(profile.condominio_id);
+      setFundoReservaTotal(saldo.reserva);
+      setFundoObrasTotal(saldo.obras);
+      setFundoCasaZeladorTotal(saldo.casaZelador);
     } catch (e) {
       console.error(e);
-      toast.error("Erro ao carregar histórico financeiro.");
+      toast.error("Erro ao carregar dados financeiros.");
     } finally {
-      setHistoricoLoading(false);
+      setFundosLoading(false);
     }
-    // Fundo de Obras é um extra opcional — não pode derrubar o histórico
-    // se a função ainda não existir nesse ambiente (ex. antes da migration).
-    try {
-      setFundoObrasTotal(await fetchFundoObrasTotal(profile.condominio_id));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [profile.id, profile.condominio_id, currentYear]);
+  }, [profile.condominio_id]);
 
   useEffect(() => {
     loadPautas();
     loadReservas();
     loadObras();
-    loadHistorico();
-  }, [loadPautas, loadReservas, loadObras, loadHistorico]);
+    loadFundos();
+  }, [loadPautas, loadReservas, loadObras, loadFundos]);
 
   const handleVote = async (pautaId: string, choice: "sim" | "nao") => {
     if (votedIds.has(pautaId)) {
@@ -1635,7 +1627,7 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
         </div>
       </section>
 
-      {/* Financeiro pessoal */}
+      {/* Financeiro */}
       <section className="bg-secondary/40 py-20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="grid gap-12 lg:grid-cols-[1fr_2fr]">
@@ -1643,25 +1635,17 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
                 <FileText className="h-3.5 w-3.5" /> Transparência financeira
               </span>
-              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Meu histórico ({currentYear})</h2>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Financeiro</h2>
               <p className="mt-4 text-muted-foreground">
-                Situação de pagamento da sua unidade ({profile.unidade || "—"}) mês a mês.
+                Quanto o condomínio já arrecadou em cada fundo, {currentYear}.
               </p>
-              {fundoObrasTotal !== null && fundoObrasTotal > 0 && (
-                <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-[color:var(--gold)]/30 bg-[color:var(--gold)]/10 px-4 py-2.5 text-sm">
-                  <Hammer className="h-4 w-4 shrink-0 text-[color:var(--gold)]" />
-                  <span>
-                    Fundo de Obras arrecadado: <strong>{fundoObrasTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-                  </span>
-                </div>
-              )}
             </Reveal>
 
             <Reveal delay={100} className="min-w-0">
-              {historicoLoading ? (
-                <LoadingBlock label="Carregando histórico…" />
+              {fundosLoading ? (
+                <LoadingBlock label="Carregando dados financeiros…" />
               ) : (
-                <MyPaymentGrid rows={historico} year={currentYear} />
+                <FundosCards reserva={fundoReservaTotal} obras={fundoObrasTotal} casaZelador={fundoCasaZeladorTotal} />
               )}
               <div className="mt-8">
                 <DocumentsArchive condominioId={profile.condominio_id} />
@@ -1854,92 +1838,125 @@ function PollCard({
   );
 }
 
-// ================== MY PAYMENT GRID (morador) ==================
+// ================== FUNDOS (financeiro) ==================
 
-const HEATMAP_CELL_STYLES: Record<FinancialStatus, string> = {
-  "Em dia": "bg-[color:var(--sage)] text-[#06231f]",
-  Pendente: "bg-[color:var(--gold)] text-primary-foreground",
-  Atrasado: "bg-destructive text-destructive-foreground",
-};
+const FUNDOS_INFO: { fundo: FundoNome; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { fundo: "reserva", label: "Fundo de Reserva", icon: PiggyBank },
+  { fundo: "obras", label: "Fundo de Obras", icon: Hammer },
+  { fundo: "casa_zelador", label: "Fundo Casa do Zelador", icon: Home },
+];
 
-function MyPaymentGrid({ rows, year }: { rows: HistoricoRow[]; year: number }) {
-  const byMonth = new Map<number, HistoricoRow>();
-  rows.forEach((r) => byMonth.set(r.mes, r));
-  const currentMonth = new Date().getMonth() + 1;
+/** Cards de saldo por fundo — usados tanto na visão do morador (só leitura) quanto na da síndica (editável via onSave). */
+function FundosCards({
+  reserva,
+  obras,
+  casaZelador,
+  onSave,
+}: {
+  reserva: number | null;
+  obras: number | null;
+  casaZelador: number | null;
+  onSave?: (fundo: FundoNome, valor: number) => Promise<void>;
+}) {
+  const valores: Record<FundoNome, number | null> = { reserva, obras, casa_zelador: casaZelador };
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {FUNDOS_INFO.map(({ fundo, label, icon }) => (
+        <FundoCard key={fundo} fundo={fundo} label={label} icon={icon} value={valores[fundo]} onSave={onSave} />
+      ))}
+    </div>
+  );
+}
 
-  const counts = { "Em dia": 0, Pendente: 0, Atrasado: 0, semRegistro: 0 };
-  for (let m = 1; m <= currentMonth; m++) {
-    const row = byMonth.get(m);
-    if (!row) { counts.semRegistro++; continue; }
-    counts[HISTORICO_DB_TO_UI[row.status]]++;
-  }
+function FundoCard({
+  fundo,
+  label,
+  icon: Icon,
+  value,
+  onSave,
+}: {
+  fundo: FundoNome;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  value: number | null;
+  onSave?: (fundo: FundoNome, valor: number) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = () => {
+    setDraft(value != null ? String(value) : "0");
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const parsed = Number(draft.replace(",", "."));
+    if (Number.isNaN(parsed) || parsed < 0) {
+      toast.error("Digite um valor válido.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave?.(fundo, parsed);
+      setEditing(false);
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao salvar valor.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-display text-lg font-semibold">Pagamentos {year}</h3>
-        <Wallet className="h-4 w-4 text-muted-foreground" />
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
-        <strong className="font-semibold">
-          {counts["Em dia"]} de {currentMonth} {counts["Em dia"] === 1 ? "mês em dia" : "meses em dia"}
-        </strong>
-        {(counts.Atrasado > 0 || counts.Pendente > 0) && (
-          <span className="text-xs text-muted-foreground">
-            {counts.Atrasado > 0 && `· ${counts.Atrasado} ${counts.Atrasado === 1 ? "atrasado" : "atrasados"} `}
-            {counts.Pendente > 0 && `· ${counts.Pendente} ${counts.Pendente === 1 ? "pendente" : "pendentes"}`}
-          </span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <Icon className="h-3.5 w-3.5 shrink-0 text-[color:var(--gold)]" /> {label}
+        </div>
+        {onSave && !editing && (
+          <button
+            type="button"
+            onClick={startEdit}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={`Editar ${label}`}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
         )}
       </div>
-
-      <div className="grid grid-cols-6 gap-2">
-        {Array.from({ length: 12 }).map((_, i) => {
-          const monthNum = i + 1;
-          const row = byMonth.get(monthNum);
-          const uiStatus = row ? HISTORICO_DB_TO_UI[row.status] : null;
-          const isFuture = monthNum > currentMonth;
-          const isCurrent = monthNum === currentMonth;
-          const cellClass = isFuture
-            ? "bg-secondary/50 text-muted-foreground"
-            : uiStatus
-              ? HEATMAP_CELL_STYLES[uiStatus]
-              : "bg-secondary/50 text-muted-foreground";
-          return (
-            <div
-              key={monthNum}
-              title={`${MONTH_NAMES_PT[i]}: ${isFuture ? "A faturar" : (uiStatus ?? "Sem registro")}`}
-              className={`flex aspect-square flex-col items-center justify-center rounded-lg text-[10px] font-bold uppercase tracking-wide ${cellClass} ${isCurrent ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""}`}
-            >
-              {MONTH_NAMES_PT_SHORT[i]}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-border pt-3">
-        {(["Em dia", "Atrasado", "Pendente"] as FinancialStatus[]).map((status) => (
-          <div key={status} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className={`h-2.5 w-2.5 rounded-sm ${HEATMAP_CELL_STYLES[status].split(" ")[0]}`} />
-            {status}
-          </div>
-        ))}
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="h-2.5 w-2.5 rounded-sm bg-secondary/50" />
-          A faturar
+      {editing ? (
+        <div className="mt-3 flex items-center gap-2">
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="h-9"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+          <Button size="sm" className="h-9 shrink-0 rounded-full" onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+          </Button>
+          <Button size="sm" variant="outline" className="h-9 shrink-0 rounded-full" onClick={() => setEditing(false)} disabled={saving}>
+            <XCircle className="h-3.5 w-3.5" />
+          </Button>
         </div>
-      </div>
+      ) : (
+        <p className="mt-3 font-display text-2xl font-medium">
+          {value == null ? "—" : value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </p>
+      )}
     </div>
   );
 }
 
 // ================== ADMIN DASHBOARD ==================
-
-const STATUS_STYLES: Record<FinancialStatus, string> = {
-  "Em dia": "bg-[color:var(--sage)]/15 text-[color:var(--sage)] border-[color:var(--sage)]/30",
-  Pendente: "bg-[color:var(--gold)]/15 text-[color:var(--gold)] border-[color:var(--gold)]/30",
-  Atrasado: "bg-destructive/10 text-destructive border-destructive/30",
-};
 
 type MoradorInfo = { id: string; nome_completo: string; unidade: string | null; role?: Role; titulo_funcao?: string | null; permissoes?: Permissao[] };
 
@@ -1987,7 +2004,6 @@ function UnidadesCobrancasSection({
   canCadastrarFuncionario,
   canManagePermissoes,
   isAdminAgencia = false,
-  onDataLoaded,
 }: {
   profile: Profile;
   canView: boolean;
@@ -1997,16 +2013,12 @@ function UnidadesCobrancasSection({
   canCadastrarFuncionario: boolean;
   canManagePermissoes: boolean;
   isAdminAgencia?: boolean;
-  onDataLoaded?: (historico: HistoricoRow[], moradores: MoradorInfo[]) => void;
 }) {
-  const onDataLoadedRef = useRef(onDataLoaded);
-  onDataLoadedRef.current = onDataLoaded;
-
-  const [historico, setHistorico] = useState<HistoricoRow[]>([]);
   const [moradores, setMoradores] = useState<MoradorInfo[]>([]);
   const [finLoading, setFinLoading] = useState(true);
-  const [historyUnitId, setHistoryUnitId] = useState<string | null>(null);
+  const [fundoReservaTotal, setFundoReservaTotal] = useState<number | null>(null);
   const [fundoObrasTotal, setFundoObrasTotal] = useState<number | null>(null);
+  const [fundoCasaZeladorTotal, setFundoCasaZeladorTotal] = useState<number | null>(null);
   const [importarOpen, setImportarOpen] = useState(false);
   const [newMoradorOpen, setNewMoradorOpen] = useState(false);
   const [newFuncionarioOpen, setNewFuncionarioOpen] = useState(false);
@@ -2015,9 +2027,6 @@ function UnidadesCobrancasSection({
   const [promoteMoradorId, setPromoteMoradorId] = useState<string | null>(null);
   const [funcaoMorador, setFuncaoMorador] = useState<MoradorInfo | null>(null);
   const [openBlocos, setOpenBlocos] = useState<Set<string>>(new Set());
-
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
 
   const moradoresPorBloco = useMemo(() => {
     const grupos = new Map<string, MoradorInfo[]>();
@@ -2041,14 +2050,8 @@ function UnidadesCobrancasSection({
   const loadFinanceiro = useCallback(async () => {
     setFinLoading(true);
     try {
-      const [h, m] = await Promise.all([
-        fetchHistoricoCondominio(profile.condominio_id),
-        fetchMoradoresDoCondominio(profile.condominio_id),
-      ]);
-      const sorted = [...m].sort((a, b) => compareUnidade(a.unidade, b.unidade));
-      setHistorico(h);
-      setMoradores(sorted);
-      onDataLoadedRef.current?.(h, sorted);
+      const m = await fetchMoradoresDoCondominio(profile.condominio_id);
+      setMoradores([...m].sort((a, b) => compareUnidade(a.unidade, b.unidade)));
     } catch (e) {
       console.error(e);
       toast.error("Erro ao carregar dados financeiros.");
@@ -2056,7 +2059,10 @@ function UnidadesCobrancasSection({
       setFinLoading(false);
     }
     try {
-      setFundoObrasTotal(await fetchFundoObrasTotal(profile.condominio_id));
+      const saldo = await fetchFundosSaldo(profile.condominio_id);
+      setFundoReservaTotal(saldo.reserva);
+      setFundoObrasTotal(saldo.obras);
+      setFundoCasaZeladorTotal(saldo.casaZelador);
     } catch (e) {
       console.error(e);
     }
@@ -2067,31 +2073,10 @@ function UnidadesCobrancasSection({
     if (podeAlgumaCoisa) loadFinanceiro();
   }, [podeAlgumaCoisa, loadFinanceiro]);
 
-  const handleHistoricoChange = async (monthNum: number, uiStatus: FinancialStatus) => {
-    if (!historyUnitId) return;
-    const dbStatus = HISTORICO_UI_TO_DB[uiStatus];
-    const existing = historico.find(
-      (h) => h.unidade_id === historyUnitId && h.ano === currentYear && h.mes === monthNum,
-    );
-    try {
-      if (existing) {
-        await atualizarHistorico(existing.id, dbStatus);
-      } else {
-        await criarHistorico({
-          condominio_id: profile.condominio_id,
-          unidade_id: historyUnitId,
-          ano: currentYear,
-          mes: monthNum,
-          status: dbStatus,
-          valor: 0,
-        });
-      }
-      toast.success(`Status atualizado para "${uiStatus}".`);
-      loadFinanceiro();
-    } catch (e) {
-      console.error(e);
-      toast.error("Erro ao atualizar status.");
-    }
+  const handleSaveFundo = async (fundo: FundoNome, valor: number) => {
+    await definirFundoSaldo(profile.condominio_id, fundo, valor, profile.id);
+    toast.success("Valor atualizado.");
+    loadFinanceiro();
   };
 
   const handleDeleteMorador = async () => {
@@ -2133,10 +2118,10 @@ function UnidadesCobrancasSection({
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
                 <Wallet className="h-3.5 w-3.5" /> Situação financeira
               </span>
-              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Unidades & cobranças</h2>
+              <h2 className="mt-3 text-3xl font-medium md:text-4xl">Financeiro</h2>
               {podeVerFinanceiro && (
                 <p className="mt-4 text-muted-foreground">
-                  Clique em uma linha para editar o histórico mensal ({currentYear}).
+                  Quanto o condomínio já arrecadou em cada fundo.
                 </p>
               )}
             </div>
@@ -2159,12 +2144,14 @@ function UnidadesCobrancasSection({
             </div>
           </div>
 
-          {podeVerFinanceiro && fundoObrasTotal !== null && fundoObrasTotal > 0 && (
-            <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-[color:var(--gold)]/30 bg-[color:var(--gold)]/10 px-4 py-2.5 text-sm">
-              <Hammer className="h-4 w-4 text-[color:var(--gold)]" />
-              <span>
-                Fundo de Obras arrecadado: <strong>{fundoObrasTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-              </span>
+          {podeVerFinanceiro && (
+            <div className="mt-6">
+              <FundosCards
+                reserva={fundoReservaTotal}
+                obras={fundoObrasTotal}
+                casaZelador={fundoCasaZeladorTotal}
+                onSave={canEditFinanceiro ? handleSaveFundo : undefined}
+              />
             </div>
           )}
 
@@ -2177,6 +2164,8 @@ function UnidadesCobrancasSection({
               onImportado={loadFinanceiro}
             />
           )}
+
+          <h3 className="mt-12 font-display text-xl font-medium">Moradores</h3>
 
           {finLoading ? (
             <div className="mt-8 rounded-2xl border border-border bg-card py-8 text-center text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
@@ -2214,18 +2203,13 @@ function UnidadesCobrancasSection({
                       {open && (
                         <ul className="mt-3 grid gap-3">
                           {lista.map((m) => {
-                            const isFuncionario = m.unidade == null;
-                            const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
-                            const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
-                            const podeHistorico = podeVerFinanceiro && !isFuncionario;
                             const podeExcluir =
                               (canDeleteMorador && (!m.role || m.role === "morador")) ||
                               (isAdminAgencia && m.role === "sindica");
                             return (
                               <li
                                 key={m.id}
-                                onClick={podeHistorico ? () => setHistoryUnitId(m.id) : undefined}
-                                className={`min-w-0 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)] ${podeHistorico ? "cursor-pointer" : ""}`}
+                                className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)]"
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
@@ -2244,18 +2228,8 @@ function UnidadesCobrancasSection({
                                       )}
                                     </p>
                                   </div>
-                                  {podeVerFinanceiro && !isFuncionario && (
-                                    <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
-                                      {uiStatus}
-                                    </span>
-                                  )}
                                 </div>
-                                <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-                                  {podeHistorico && (
-                                    <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
-                                      <History className="h-3.5 w-3.5" /> Histórico
-                                    </Button>
-                                  )}
+                                <div className="mt-3 flex flex-wrap gap-2">
                                   {canManageMoradores && (
                                     <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
                                       <Pencil className="h-3.5 w-3.5" /> Editar
@@ -2294,9 +2268,6 @@ function UnidadesCobrancasSection({
                     <TableRow>
                       <TableHead className="w-[120px]">Unidade</TableHead>
                       <TableHead>Morador responsável</TableHead>
-                      {podeVerFinanceiro && (
-                        <TableHead>Status ({MONTH_NAMES_PT_SHORT[currentMonth - 1]}/{currentYear})</TableHead>
-                      )}
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -2310,7 +2281,7 @@ function UnidadesCobrancasSection({
                             className="cursor-pointer bg-secondary/40 hover:bg-secondary/60"
                             aria-expanded={open}
                           >
-                            <TableCell colSpan={podeVerFinanceiro ? 4 : 3} className="font-medium">
+                            <TableCell colSpan={3} className="font-medium">
                               <div className="flex items-center gap-2">
                                 <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
                                 {bloco === BLOCO_FUNCIONARIOS ? bloco : `Bloco ${bloco}`}{" "}
@@ -2325,19 +2296,11 @@ function UnidadesCobrancasSection({
                           </TableRow>
                           {open &&
                             lista.map((m) => {
-                              const isFuncionario = m.unidade == null;
-                              const row = historico.find((h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth);
-                              const uiStatus: FinancialStatus = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
-                              const podeHistorico = podeVerFinanceiro && !isFuncionario;
                               const podeExcluir =
                                 (canDeleteMorador && (!m.role || m.role === "morador")) ||
                                 (isAdminAgencia && m.role === "sindica");
                               return (
-                                <TableRow
-                                  key={m.id}
-                                  onClick={podeHistorico ? () => setHistoryUnitId(m.id) : undefined}
-                                  className={podeHistorico ? "cursor-pointer" : ""}
-                                >
+                                <TableRow key={m.id}>
                                   <TableCell className="font-mono font-semibold">{m.unidade ?? "—"}</TableCell>
                                   <TableCell>
                                     {m.nome_completo}
@@ -2352,22 +2315,8 @@ function UnidadesCobrancasSection({
                                       </span>
                                     )}
                                   </TableCell>
-                                  {podeVerFinanceiro && (
-                                    <TableCell>
-                                      {!isFuncionario && (
-                                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[uiStatus]}`}>
-                                          {uiStatus}
-                                        </span>
-                                      )}
-                                    </TableCell>
-                                  )}
-                                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell className="text-right">
                                     <div className="flex justify-end gap-2">
-                                      {podeHistorico && (
-                                        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setHistoryUnitId(m.id)}>
-                                          <History className="h-3.5 w-3.5" /> Histórico
-                                        </Button>
-                                      )}
                                       {canManageMoradores && (
                                         <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => setEditMorador(m)}>
                                           <Pencil className="h-3.5 w-3.5" /> Editar
@@ -2403,17 +2352,6 @@ function UnidadesCobrancasSection({
           )}
         </div>
       </section>
-
-      {podeVerFinanceiro && (
-        <PaymentHistoryDialog
-          moradorId={historyUnitId}
-          moradores={moradores}
-          historico={historico}
-          year={currentYear}
-          onClose={() => setHistoryUnitId(null)}
-          onChange={handleHistoricoChange}
-        />
-      )}
 
       {canManageMoradores && (
         <>
@@ -2712,16 +2650,6 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
   const [reservas, setReservas] = useState<ReservaComMorador[]>([]);
   const [reservasLoading, setReservasLoading] = useState(true);
 
-  // historico/moradores só existem aqui pros StatCards do topo — quem
-  // busca e mantém esses dados de verdade é UnidadesCobrancasSection
-  // (via onDataLoaded), pra não duplicar a query. Pautas/obras viraram
-  // VotacoesAdminSection/ObrasAdminSection, cada uma com seu próprio fetch.
-  const [historico, setHistorico] = useState<HistoricoRow[]>([]);
-  const [moradores, setMoradores] = useState<MoradorInfo[]>([]);
-
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
-
   const [blockOpen, setBlockOpen] = useState(false);
 
   const loadReservas = useCallback(async () => {
@@ -2734,21 +2662,6 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
   useEffect(() => {
     loadReservas();
   }, [loadReservas]);
-
-  const stats = useMemo(() => {
-    const counts: Record<FinancialStatus, number> = { "Em dia": 0, Pendente: 0, Atrasado: 0 };
-    // Funcionário puro (unidade null) não paga condomínio — não entra na
-    // contagem de inadimplência. Morador com cargo continua contando
-    // normalmente, porque ele tem unidade e paga como qualquer morador.
-    moradores.filter((m) => m.unidade != null).forEach((m) => {
-      const row = historico.find(
-        (h) => h.unidade_id === m.id && h.ano === currentYear && h.mes === currentMonth,
-      );
-      const s = row ? HISTORICO_DB_TO_UI[row.status] : "Pendente";
-      counts[s] += 1;
-    });
-    return counts;
-  }, [historico, moradores, currentYear, currentMonth]);
 
   const handleApprove = async (id: string) => {
     try {
@@ -2837,12 +2750,6 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
           <p className="mt-3 max-w-2xl text-muted-foreground">
             Gerencie unidades, reservas, votações e obras do condomínio.
           </p>
-
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            <StatCard label="Em dia" value={stats["Em dia"]} accent="var(--sage)" />
-            <StatCard label="Pendentes" value={stats["Pendente"]} accent="var(--gold)" />
-            <StatCard label="Atrasados" value={stats["Atrasado"]} accent="hsl(var(--destructive))" />
-          </div>
         </div>
       </section>
 
@@ -2855,7 +2762,6 @@ function AdminDashboard({ profile, onLogout, adminAgenciaToggle, isAdminAgencia 
         canCadastrarFuncionario
         canManagePermissoes
         isAdminAgencia={isAdminAgencia}
-        onDataLoaded={(h, m) => { setHistorico(h); setMoradores(m); }}
       />
       <VotacoesAdminSection condominioId={profile.condominio_id} canManage />
 
@@ -3849,21 +3755,6 @@ function ReservationModule({
 }
 
 
-// ================== STAT CARD ==================
-
-function StatCard({ label, value, accent }: { label: string; value: number; accent: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: `color-mix(in oklab, ${accent} 100%, transparent)` }} />
-      </div>
-      <p className="mt-3 font-display text-3xl font-medium">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">unidades</p>
-    </div>
-  );
-}
-
 // ================== OBRAS ==================
 
 function ObrasTabs({
@@ -4763,157 +4654,6 @@ function DocumentsAdminSection({ condominioId }: { condominioId: string }) {
   );
 }
 
-
-// ================== PAYMENT HISTORY DIALOG (admin) ==================
-
-function PaymentHistoryDialog({
-  moradorId,
-  moradores,
-  historico,
-  year,
-  onClose,
-  onChange,
-}: {
-  moradorId: string | null;
-  moradores: MoradorInfo[];
-  historico: HistoricoRow[];
-  year: number;
-  onClose: () => void;
-  onChange: (monthNum: number, status: FinancialStatus) => void;
-}) {
-
-  const morador = moradorId ? moradores.find((m) => m.id === moradorId) ?? null : null;
-  const rowsByMonth = new Map<number, HistoricoRow>();
-  if (moradorId) {
-    historico
-      .filter((h) => h.unidade_id === moradorId && h.ano === year)
-      .forEach((h) => rowsByMonth.set(h.mes, h));
-  }
-  const currentMonthIdx = new Date().getMonth();
-
-  return (
-    <Dialog open={!!moradorId} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="font-display text-2xl">
-            Histórico de pagamentos — {morador?.unidade}
-          </DialogTitle>
-          <DialogDescription>
-            {morador?.nome_completo} · Ano {year}. Altere o status retroativamente.
-          </DialogDescription>
-        </DialogHeader>
-
-        {morador && (
-          <>
-            {(() => {
-              let emDia = 0, atrasado = 0, pendente = 0, semRegistro = 0;
-              for (let i = 0; i <= currentMonthIdx; i++) {
-                const row = rowsByMonth.get(i + 1);
-                if (!row) { semRegistro++; continue; }
-                const s = HISTORICO_DB_TO_UI[row.status];
-                if (s === "Em dia") emDia++;
-                else if (s === "Atrasado") atrasado++;
-                else pendente++;
-              }
-              return (
-                <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
-                  <strong className="font-semibold">
-                    {emDia} de {currentMonthIdx + 1} {emDia === 1 ? "mês em dia" : "meses em dia"}
-                  </strong>
-                  {(atrasado > 0 || pendente > 0 || semRegistro > 0) && (
-                    <span className="text-xs text-muted-foreground">
-                      {atrasado > 0 && `· ${atrasado} ${atrasado === 1 ? "atrasado" : "atrasados"} `}
-                      {pendente > 0 && `· ${pendente} ${pendente === 1 ? "pendente" : "pendentes"} `}
-                      {semRegistro > 0 && `· ${semRegistro} sem registro`}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
-
-            <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
-              {Array.from({ length: 12 }).map((_, i) => {
-                const monthNum = i + 1;
-                const row = rowsByMonth.get(monthNum);
-                const uiStatus = row ? HISTORICO_DB_TO_UI[row.status] : null;
-                const isFuture = i > currentMonthIdx;
-                const isCurrent = i === currentMonthIdx;
-                const cardClass =
-                  !isFuture && uiStatus
-                    ? HEATMAP_CELL_STYLES[uiStatus]
-                    : "border border-dashed border-border bg-secondary/30 text-muted-foreground";
-                return (
-                  <div
-                    key={i}
-                    className={`rounded-xl p-3 transition-all ${cardClass} ${isCurrent ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold uppercase tracking-wider opacity-80">
-                        {MONTH_NAMES_PT_SHORT[i]}
-                      </p>
-                      {isCurrent && (
-                        <span className="rounded-full bg-primary px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">
-                          Atual
-                        </span>
-                      )}
-                    </div>
-                    {isFuture ? (
-                      <p className="mt-3 text-[11px] italic">A faturar</p>
-                    ) : uiStatus ? (
-                      <Select value={uiStatus} onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
-                        <SelectTrigger className="mt-2 h-8 w-full border-0 bg-transparent px-0 text-[11px] font-bold uppercase tracking-wide text-current shadow-none focus:ring-0">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Em dia">Em dia (Pago)</SelectItem>
-                          <SelectItem value="Pendente">Pendente</SelectItem>
-                          <SelectItem value="Atrasado">Atrasado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Select value="" onValueChange={(v) => onChange(monthNum, v as FinancialStatus)}>
-                        <SelectTrigger className="mt-2 h-8 w-full border-0 bg-transparent px-0 text-[11px] italic text-muted-foreground shadow-none focus:ring-0">
-                          <SelectValue placeholder="Sem registro" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Em dia">Em dia (Pago)</SelectItem>
-                          <SelectItem value="Pendente">Pendente</SelectItem>
-                          <SelectItem value="Atrasado">Atrasado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-border pt-3">
-              {(["Em dia", "Atrasado", "Pendente"] as FinancialStatus[]).map((status) => (
-                <div key={status} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <span className={`h-2.5 w-2.5 rounded-sm ${HEATMAP_CELL_STYLES[status].split(" ")[0]}`} />
-                  {status}
-                </div>
-              ))}
-              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span className="h-2.5 w-2.5 rounded-sm bg-secondary/50" />
-                A faturar
-              </div>
-            </div>
-          </>
-        )}
-
-        <div className="mt-4 rounded-lg border border-border bg-secondary/40 p-3 text-[11px] text-muted-foreground">
-          <p className="flex items-center gap-1.5 font-semibold uppercase tracking-wider text-foreground">
-            <ShieldCheck className="h-3.5 w-3.5 text-[color:var(--sage)]" /> Edição registrada
-          </p>
-          <p className="mt-1">
-            Alterações são gravadas no banco imediatamente e ficam disponíveis para auditoria.
-          </p>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // ================== BLOCK DATE / EDIT / DELETE MORADOR DIALOGS ==================
 
