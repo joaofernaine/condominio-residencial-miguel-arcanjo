@@ -3,6 +3,9 @@
 // correspondente com nome, unidade (bloco-apartamento) e condomínio.
 // Além de sindica/admin_agencia, libera também quem tem a permissão
 // granular "gerenciar_moradores" (mesmo padrão de criar-funcionario).
+// `tipo_ocupante` ("dono" | "inquilino", default "dono") marca se essa
+// pessoa é a titular da unidade ou um inquilino vinculado a ela — a
+// constraint unique no banco garante no máximo 1 de cada por unidade.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const corsHeaders = {
@@ -33,12 +36,14 @@ Deno.serve(async (req) => {
       return json({ error: "Não autenticado." }, 401);
     }
 
-    const { email, nome_completo, bloco, apartamento, condominio_id } =
+    const { email, nome_completo, bloco, apartamento, condominio_id, tipo_ocupante } =
       await req.json();
 
     if (!email || !nome_completo || !bloco || !apartamento || !condominio_id) {
       return json({ error: "Campos obrigatórios ausentes." }, 400);
     }
+
+    const tipoOcupante = tipo_ocupante === "inquilino" ? "inquilino" : "dono";
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -118,6 +123,7 @@ Deno.serve(async (req) => {
       condominio_id,
       role: "morador" as const,
       primeiro_acesso: true,
+      tipo_ocupante: tipoOcupante,
     };
 
     if (existing) {

@@ -52,7 +52,33 @@ export type Profile = {
   primeiro_acesso: boolean;
   titulo_funcao: string | null;
   permissoes: Permissao[];
+  tipo_ocupante: TipoOcupante;
 };
+
+// Todo profile nasce "dono" (titular da unidade). Síndica/admin_agencia
+// pode cadastrar um segundo perfil "inquilino" vinculado à mesma unidade —
+// no máximo 1 de cada por unidade (constraint no banco). O dono decide,
+// área por área, o que restringe pro inquilino da própria unidade.
+export type TipoOcupante = "dono" | "inquilino";
+
+export type AreaOcupante =
+  | "votacao"
+  | "financeiro"
+  | "obras"
+  | "reservas"
+  | "marketplace"
+  | "visitantes"
+  | "fale_com_sindica";
+
+export const AREAS_OCUPANTE: { id: AreaOcupante; label: string }[] = [
+  { id: "votacao", label: "Votação" },
+  { id: "financeiro", label: "Financeiro" },
+  { id: "obras", label: "Obras" },
+  { id: "reservas", label: "Reservas" },
+  { id: "marketplace", label: "Marketplace" },
+  { id: "visitantes", label: "Visitantes" },
+  { id: "fale_com_sindica", label: "Fale com a síndica" },
+];
 
 export type PautaRow = {
   id: string;
@@ -364,7 +390,7 @@ export async function fetchMoradoresDoCondominio(condominioId: string) {
   // <> 'ADMIN' avalia "unknown", não true, no Postgres).
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, nome_completo, unidade, role, titulo_funcao, profile_permissoes(permissao)")
+    .select("id, nome_completo, unidade, role, titulo_funcao, tipo_ocupante, profile_permissoes(permissao)")
     .eq("condominio_id", condominioId);
   if (error) throw error;
   return (data ?? [])
@@ -375,6 +401,7 @@ export async function fetchMoradoresDoCondominio(condominioId: string) {
       unidade: m.unidade as string | null,
       role: m.role as Role,
       titulo_funcao: m.titulo_funcao as string | null,
+      tipo_ocupante: m.tipo_ocupante as TipoOcupante,
       permissoes: ((m.profile_permissoes ?? []) as { permissao: Permissao }[]).map((p) => p.permissao),
     }));
 }
@@ -532,6 +559,7 @@ export async function criarMorador(input: {
   email: string;
   bloco: string;
   apartamento: string;
+  tipo_ocupante?: TipoOcupante;
 }) {
   return invocarFuncaoEdge("criar-morador", {
     email: input.email,
@@ -539,7 +567,49 @@ export async function criarMorador(input: {
     bloco: input.bloco,
     apartamento: input.apartamento,
     condominio_id: input.condominio_id,
+    tipo_ocupante: input.tipo_ocupante,
   });
+}
+
+// ---------- DONO / INQUILINO ----------
+
+/** Inquilino vinculado à mesma unidade do dono que chama (ou null se não houver). */
+export async function fetchInquilinoDaUnidade(condominioId: string, unidade: string, meuProfileId: string) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, nome_completo")
+    .eq("condominio_id", condominioId)
+    .eq("unidade", unidade)
+    .eq("tipo_ocupante", "inquilino")
+    .neq("id", meuProfileId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as { id: string; nome_completo: string } | null;
+}
+
+export async function fetchAreasBloqueadas(profileId: string): Promise<Set<AreaOcupante>> {
+  const { data, error } = await supabase
+    .from("unidade_areas_bloqueadas")
+    .select("area")
+    .eq("profile_id", profileId);
+  if (error) throw error;
+  return new Set((data ?? []).map((r) => r.area as AreaOcupante));
+}
+
+export async function bloquearArea(inquilinoProfileId: string, area: AreaOcupante) {
+  const { error } = await supabase
+    .from("unidade_areas_bloqueadas")
+    .insert({ profile_id: inquilinoProfileId, area });
+  if (error) throw error;
+}
+
+export async function liberarArea(inquilinoProfileId: string, area: AreaOcupante) {
+  const { error } = await supabase
+    .from("unidade_areas_bloqueadas")
+    .delete()
+    .eq("profile_id", inquilinoProfileId)
+    .eq("area", area);
+  if (error) throw error;
 }
 
 export async function criarFuncionario(input: {

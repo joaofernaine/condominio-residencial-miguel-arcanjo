@@ -218,6 +218,13 @@ import {
   criarAvisoPublico,
   toggleAvisoPublico,
   removerAvisoPublico,
+  type TipoOcupante,
+  type AreaOcupante,
+  AREAS_OCUPANTE,
+  fetchInquilinoDaUnidade,
+  fetchAreasBloqueadas,
+  bloquearArea,
+  liberarArea,
 } from "@/lib/portal-data";
 
 // Mapa de ícones (nome lucide → componente) para amenidades. Chave é o que
@@ -1413,6 +1420,87 @@ function PublicContactSection({
 
 // ================== RESIDENT DASHBOARD ==================
 
+// Card exibido só pro DONO, quando existe um inquilino vinculado à mesma
+// unidade — deixa ligar/desligar cada área pro inquilino. Some sozinho se
+// não houver inquilino cadastrado (só a síndica cadastra).
+function InquilinoAcessoCard({ profile }: { profile: Profile }) {
+  const [inquilino, setInquilino] = useState<{ id: string; nome_completo: string } | null>(null);
+  const [bloqueadas, setBloqueadas] = useState<Set<AreaOcupante>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [savingArea, setSavingArea] = useState<AreaOcupante | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const inq = await fetchInquilinoDaUnidade(profile.condominio_id, profile.unidade, profile.id);
+        if (!ativo) return;
+        setInquilino(inq);
+        if (inq) setBloqueadas(await fetchAreasBloqueadas(inq.id));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (ativo) setLoading(false);
+      }
+    })();
+    return () => { ativo = false; };
+  }, [profile.condominio_id, profile.unidade, profile.id]);
+
+  if (loading || !inquilino) return null;
+
+  const toggle = async (area: AreaOcupante, liberar: boolean) => {
+    setSavingArea(area);
+    try {
+      if (liberar) {
+        await liberarArea(inquilino.id, area);
+        setBloqueadas((prev) => { const next = new Set(prev); next.delete(area); return next; });
+      } else {
+        await bloquearArea(inquilino.id, area);
+        setBloqueadas((prev) => new Set(prev).add(area));
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao atualizar acesso do inquilino.");
+    } finally {
+      setSavingArea(null);
+    }
+  };
+
+  return (
+    <section className="bg-background py-12">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
+          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--sage)]">
+            <ShieldCheck className="h-3.5 w-3.5" /> Acesso do inquilino
+          </span>
+          <h3 className="mt-2 font-display text-xl font-medium">
+            O que <span className="capitalize italic text-primary">{inquilino.nome_completo}</span> pode ver/fazer
+          </h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Por padrão o inquilino tem acesso igual ao seu. Desligue o que quiser tratar você mesmo.
+          </p>
+          <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
+            {AREAS_OCUPANTE.map((a) => {
+              const liberado = !bloqueadas.has(a.id);
+              return (
+                <label key={a.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border px-3 py-2.5 text-sm">
+                  <Checkbox
+                    checked={liberado}
+                    disabled={savingArea === a.id}
+                    onCheckedChange={(v) => toggle(a.id, v === true)}
+                  />
+                  {a.label}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile: Profile; onLogout: () => void; adminAgenciaToggle?: ReactNode }) {
   const [pautas, setPautas] = useState<PautaRow[]>([]);
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
@@ -1430,6 +1518,17 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
   const [fundoReservaTotal, setFundoReservaTotal] = useState<number | null>(null);
   const [fundoObrasTotal, setFundoObrasTotal] = useState<number | null>(null);
   const [fundoCasaZeladorTotal, setFundoCasaZeladorTotal] = useState<number | null>(null);
+
+  // Só inquilino pode ter área restrita pelo dono — dono/síndica/admin_agencia
+  // nunca têm linha em unidade_areas_bloqueadas, então nem precisam buscar.
+  const [areasBloqueadas, setAreasBloqueadas] = useState<Set<AreaOcupante>>(new Set());
+  const ehInquilino = profile.tipo_ocupante === "inquilino";
+  const liberado = (area: AreaOcupante) => !ehInquilino || !areasBloqueadas.has(area);
+
+  useEffect(() => {
+    if (!ehInquilino) return;
+    fetchAreasBloqueadas(profile.id).then(setAreasBloqueadas).catch((e) => console.error(e));
+  }, [ehInquilino, profile.id]);
 
   const loadPautas = useCallback(async () => {
     setPautasLoading(true);
@@ -1596,7 +1695,9 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
         </Reveal>
       </section>
 
-      {/* Votações */}
+      {profile.tipo_ocupante === "dono" && <InquilinoAcessoCard profile={profile} />}
+
+      {liberado("votacao") && (
       <section className="bg-background py-20">
         <div className="mx-auto max-w-7xl px-6">
           <Reveal className="max-w-2xl">
@@ -1626,8 +1727,9 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
           </div>
         </div>
       </section>
+      )}
 
-      {/* Financeiro */}
+      {liberado("financeiro") && (
       <section className="bg-secondary/40 py-20">
         <div className="mx-auto max-w-7xl px-6">
           <div className="grid gap-12 lg:grid-cols-[1fr_2fr]">
@@ -1655,8 +1757,9 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
           </div>
         </div>
       </section>
+      )}
 
-      {/* Obras */}
+      {liberado("obras") && (
       <section className="bg-background py-20">
         <div className="mx-auto max-w-7xl px-6">
           <Reveal className="max-w-2xl">
@@ -1678,8 +1781,9 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
           )}
         </div>
       </section>
+      )}
 
-      {/* Reservas */}
+      {liberado("reservas") && (
       <section className="bg-secondary/40 py-20">
         <div className="mx-auto max-w-7xl px-6">
           <Reveal className="flex flex-wrap items-end justify-between gap-6">
@@ -1766,12 +1870,13 @@ function ResidentDashboard({ profile, onLogout, adminAgenciaToggle }: { profile:
           </div>
         </div>
       </section>
+      )}
 
-      <ClassificadosResidentSection profile={profile} />
+      {liberado("marketplace") && <ClassificadosResidentSection profile={profile} />}
 
-      <VisitantesResidentSection profile={profile} />
+      {liberado("visitantes") && <VisitantesResidentSection profile={profile} />}
 
-      <ChamadosResidentSection profile={profile} />
+      {liberado("fale_com_sindica") && <ChamadosResidentSection profile={profile} />}
 
       <footer className="border-t border-border bg-background py-8">
         <div className="mx-auto flex max-w-7xl flex-col items-center gap-2 px-6 text-center text-sm text-muted-foreground">
@@ -1964,7 +2069,7 @@ function FundoCard({
 
 // ================== ADMIN DASHBOARD ==================
 
-type MoradorInfo = { id: string; nome_completo: string; unidade: string | null; role?: Role; titulo_funcao?: string | null; permissoes?: Permissao[] };
+type MoradorInfo = { id: string; nome_completo: string; unidade: string | null; role?: Role; titulo_funcao?: string | null; tipo_ocupante?: TipoOcupante; permissoes?: Permissao[] };
 
 const BLOCO_FUNCIONARIOS = "Funcionários";
 
@@ -2227,6 +2332,11 @@ function UnidadesCobrancasSection({
                                           {ROLE_LABEL[m.role]}
                                         </span>
                                       )}
+                                      {m.tipo_ocupante === "inquilino" && (
+                                        <span className="ml-1.5 inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary-foreground">
+                                          Inquilino
+                                        </span>
+                                      )}
                                       {m.titulo_funcao && (
                                         <span className="ml-1.5 inline-flex items-center rounded-full bg-[color:var(--gold)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--gold)]">
                                           {m.titulo_funcao}
@@ -2313,6 +2423,11 @@ function UnidadesCobrancasSection({
                                     {m.role && m.role !== "morador" && (
                                       <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                                         {ROLE_LABEL[m.role]}
+                                      </span>
+                                    )}
+                                    {m.tipo_ocupante === "inquilino" && (
+                                      <span className="ml-1.5 inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary-foreground">
+                                        Inquilino
                                       </span>
                                     )}
                                     {m.titulo_funcao && (
@@ -2846,9 +2961,10 @@ function NewMoradorDialog({
   const [email, setEmail] = useState("");
   const [bloco, setBloco] = useState<"A" | "B">("A");
   const [apartamento, setApartamento] = useState("");
+  const [tipoOcupante, setTipoOcupante] = useState<TipoOcupante>("dono");
   const [saving, setSaving] = useState(false);
 
-  const reset = () => { setNome(""); setEmail(""); setBloco("A"); setApartamento(""); };
+  const reset = () => { setNome(""); setEmail(""); setBloco("A"); setApartamento(""); setTipoOcupante("dono"); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2864,6 +2980,7 @@ function NewMoradorDialog({
         email: email.trim(),
         bloco,
         apartamento: apartamento.trim(),
+        tipo_ocupante: tipoOcupante,
       });
       toast.success("Morador cadastrado! Senha provisória: Mudar@123");
       reset();
@@ -2912,6 +3029,22 @@ function NewMoradorDialog({
               <Label htmlFor="nm-apto">Apartamento</Label>
               <Input id="nm-apto" value={apartamento} onChange={(e) => setApartamento(e.target.value)} placeholder="Ex.: 301" required />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nm-tipo">Tipo</Label>
+            <Select value={tipoOcupante} onValueChange={(v) => setTipoOcupante(v as TipoOcupante)}>
+              <SelectTrigger id="nm-tipo"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dono">Dono (titular da unidade)</SelectItem>
+                <SelectItem value="inquilino">Inquilino</SelectItem>
+              </SelectContent>
+            </Select>
+            {tipoOcupante === "inquilino" && (
+              <p className="text-xs text-muted-foreground">
+                Só é possível cadastrar 1 inquilino por unidade, e a unidade precisa já ter um dono cadastrado.
+                O dono controla, na própria área de morador, o que esse inquilino pode ver/fazer.
+              </p>
+            )}
           </div>
           <Button type="submit" className="w-full rounded-full" disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
