@@ -9,18 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
-import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PrivacidadeRouteImport } from './routes/privacidade'
+import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as ClassificadosIndexRouteImport } from './routes/classificados.index'
-import { Route as ClassificadosNovoRouteImport } from './routes/classificados.novo'
 import { Route as ClassificadosMeusRouteImport } from './routes/classificados.meus'
+import { Route as ClassificadosNovoRouteImport } from './routes/classificados.novo'
 import { Route as AdminClassificadosIndexRouteImport } from './routes/admin.classificados.index'
 import { Route as AdminClassificadosPendentesRouteImport } from './routes/admin.classificados.pendentes'
 
-const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
-  id: '/redefinir-senha',
-  path: '/redefinir-senha',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacidadeRoute = PrivacidadeRouteImport.update({
@@ -28,9 +28,9 @@ const PrivacidadeRoute = PrivacidadeRouteImport.update({
   path: '/privacidade',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
+  id: '/redefinir-senha',
+  path: '/redefinir-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClassificadosIndexRoute = ClassificadosIndexRouteImport.update({
@@ -38,14 +38,14 @@ const ClassificadosIndexRoute = ClassificadosIndexRouteImport.update({
   path: '/classificados/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ClassificadosNovoRoute = ClassificadosNovoRouteImport.update({
-  id: '/classificados/novo',
-  path: '/classificados/novo',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ClassificadosMeusRoute = ClassificadosMeusRouteImport.update({
   id: '/classificados/meus',
   path: '/classificados/meus',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClassificadosNovoRoute = ClassificadosNovoRouteImport.update({
+  id: '/classificados/novo',
+  path: '/classificados/novo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminClassificadosIndexRoute = AdminClassificadosIndexRouteImport.update({
@@ -137,11 +137,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/redefinir-senha': {
-      id: '/redefinir-senha'
-      path: '/redefinir-senha'
-      fullPath: '/redefinir-senha'
-      preLoaderRoute: typeof RedefinirSenhaRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacidade': {
@@ -151,11 +151,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacidadeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/redefinir-senha': {
+      id: '/redefinir-senha'
+      path: '/redefinir-senha'
+      fullPath: '/redefinir-senha'
+      preLoaderRoute: typeof RedefinirSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/classificados/': {
@@ -165,18 +165,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClassificadosIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/classificados/novo': {
-      id: '/classificados/novo'
-      path: '/classificados/novo'
-      fullPath: '/classificados/novo'
-      preLoaderRoute: typeof ClassificadosNovoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/classificados/meus': {
       id: '/classificados/meus'
       path: '/classificados/meus'
       fullPath: '/classificados/meus'
       preLoaderRoute: typeof ClassificadosMeusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/classificados/novo': {
+      id: '/classificados/novo'
+      path: '/classificados/novo'
+      fullPath: '/classificados/novo'
+      preLoaderRoute: typeof ClassificadosNovoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/classificados/': {
