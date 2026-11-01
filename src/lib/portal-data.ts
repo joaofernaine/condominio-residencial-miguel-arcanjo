@@ -596,6 +596,28 @@ export async function fetchAreasBloqueadas(profileId: string): Promise<Set<AreaO
   return new Set((data ?? []).map((r) => r.area as AreaOcupante));
 }
 
+/** Bloqueia várias áreas de uma vez pro inquilino recém-cadastrado, achado por unidade. */
+export async function bloquearAreasDoInquilinoDaUnidade(
+  condominioId: string,
+  unidade: string,
+  areas: AreaOcupante[],
+) {
+  if (areas.length === 0) return;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("condominio_id", condominioId)
+    .eq("unidade", unidade)
+    .eq("tipo_ocupante", "inquilino")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Inquilino não encontrado para aplicar as restrições.");
+  const { error: insErr } = await supabase
+    .from("unidade_areas_bloqueadas")
+    .insert(areas.map((area) => ({ profile_id: data.id, area })));
+  if (insErr) throw insErr;
+}
+
 export async function bloquearArea(inquilinoProfileId: string, area: AreaOcupante) {
   const { error } = await supabase
     .from("unidade_areas_bloqueadas")

@@ -222,6 +222,7 @@ import {
   type AreaOcupante,
   AREAS_OCUPANTE,
   fetchInquilinoDaUnidade,
+  bloquearAreasDoInquilinoDaUnidade,
   fetchAreasBloqueadas,
   bloquearArea,
   liberarArea,
@@ -1419,6 +1420,11 @@ function PublicContactSection({
 }
 
 // ================== RESIDENT DASHBOARD ==================
+
+// Áreas liberadas por padrão ao cadastrar um inquilino (Votação e Financeiro ficam de fora).
+const AREAS_INQUILINO_PADRAO: Set<AreaOcupante> = new Set([
+  "obras", "reservas", "marketplace", "visitantes", "fale_com_sindica",
+]);
 
 // Card exibido só pro DONO, quando existe um inquilino vinculado à mesma
 // unidade — deixa ligar/desligar cada área pro inquilino. Some sozinho se
@@ -2962,9 +2968,13 @@ function NewMoradorDialog({
   const [bloco, setBloco] = useState<"A" | "B">("A");
   const [apartamento, setApartamento] = useState("");
   const [tipoOcupante, setTipoOcupante] = useState<TipoOcupante>("dono");
+  const [areasInquilino, setAreasInquilino] = useState<Set<AreaOcupante>>(AREAS_INQUILINO_PADRAO);
   const [saving, setSaving] = useState(false);
 
-  const reset = () => { setNome(""); setEmail(""); setBloco("A"); setApartamento(""); setTipoOcupante("dono"); };
+  const reset = () => {
+    setNome(""); setEmail(""); setBloco("A"); setApartamento(""); setTipoOcupante("dono");
+    setAreasInquilino(AREAS_INQUILINO_PADRAO);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2982,6 +2992,18 @@ function NewMoradorDialog({
         apartamento: apartamento.trim(),
         tipo_ocupante: tipoOcupante,
       });
+      if (tipoOcupante === "inquilino") {
+        try {
+          await bloquearAreasDoInquilinoDaUnidade(
+            condominioId,
+            `${bloco}-${apartamento.trim()}`,
+            AREAS_OCUPANTE.map((a) => a.id).filter((id) => !areasInquilino.has(id)),
+          );
+        } catch (errAreas) {
+          console.error(errAreas);
+          toast.error("Inquilino cadastrado, mas não foi possível salvar as restrições de acesso. O dono pode ajustar na área dele.");
+        }
+      }
       toast.success("Morador cadastrado! Senha provisória: Mudar@123");
       reset();
       onOpenChange(false);
@@ -3042,10 +3064,32 @@ function NewMoradorDialog({
             {tipoOcupante === "inquilino" && (
               <p className="text-xs text-muted-foreground">
                 Só é possível cadastrar 1 inquilino por unidade, e a unidade precisa já ter um dono cadastrado.
-                O dono controla, na própria área de morador, o que esse inquilino pode ver/fazer.
+                O dono pode ajustar depois, na própria área de morador.
               </p>
             )}
           </div>
+          {tipoOcupante === "inquilino" && (
+            <div className="space-y-2">
+              <Label>O que o inquilino pode ver/fazer</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {AREAS_OCUPANTE.map((a) => (
+                  <label key={a.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border px-3 py-2 text-sm">
+                    <Checkbox
+                      checked={areasInquilino.has(a.id)}
+                      onCheckedChange={(v) =>
+                        setAreasInquilino((prev) => {
+                          const next = new Set(prev);
+                          if (v === true) next.add(a.id); else next.delete(a.id);
+                          return next;
+                        })
+                      }
+                    />
+                    {a.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <Button type="submit" className="w-full rounded-full" disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Cadastrar
@@ -4893,6 +4937,13 @@ function EditMoradorDialog({
   const [bloco, setBloco] = useState<"A" | "B">("A");
   const [apartamento, setApartamento] = useState("");
   const [saving, setSaving] = useState(false);
+  // Áreas bloqueadas hoje (original) x áreas bloqueadas após edição — só inquilino.
+  const [bloqueadasOriginal, setBloqueadasOriginal] = useState<Set<AreaOcupante>>(new Set());
+  const [bloqueadas, setBloqueadas] = useState<Set<AreaOcupante>>(new Set());
+  const [areasLoading, setAreasLoading] = useState(false);
+
+  const ehInquilino = morador?.tipo_ocupante === "inquilino";
+  const moradorId = morador?.id;
 
   useEffect(() => {
     if (morador) {
@@ -4902,6 +4953,24 @@ function EditMoradorDialog({
       setApartamento(apto ?? "");
     }
   }, [morador]);
+
+  useEffect(() => {
+    if (!moradorId || !ehInquilino) return;
+    let ativo = true;
+    setAreasLoading(true);
+    fetchAreasBloqueadas(moradorId)
+      .then((s) => {
+        if (!ativo) return;
+        setBloqueadasOriginal(s);
+        setBloqueadas(new Set(s));
+      })
+      .catch((e) => {
+        console.error(e);
+        toast.error("Erro ao carregar as áreas do inquilino.");
+      })
+      .finally(() => { if (ativo) setAreasLoading(false); });
+    return () => { ativo = false; };
+  }, [moradorId, ehInquilino]);
 
   const isFuncionario = morador?.unidade == null;
 
@@ -4918,6 +4987,14 @@ function EditMoradorDialog({
         nome_completo: nome.trim(),
         unidade: isFuncionario ? null : `${bloco}-${apartamento.trim()}`,
       });
+      if (ehInquilino) {
+        for (const a of AREAS_OCUPANTE) {
+          const antes = bloqueadasOriginal.has(a.id);
+          const depois = bloqueadas.has(a.id);
+          if (!antes && depois) await bloquearArea(morador.id, a.id);
+          else if (antes && !depois) await liberarArea(morador.id, a.id);
+        }
+      }
       toast.success(isFuncionario ? "Funcionário atualizado." : "Morador atualizado.");
       onOpenChange(false);
       onSaved();
@@ -4963,7 +5040,30 @@ function EditMoradorDialog({
               </div>
             </div>
           )}
-          <Button type="submit" className="w-full rounded-full" disabled={saving}>
+          {ehInquilino && (
+            <div className="space-y-2">
+              <Label>O que o inquilino pode ver/fazer</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {AREAS_OCUPANTE.map((a) => (
+                  <label key={a.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border px-3 py-2 text-sm">
+                    <Checkbox
+                      checked={!bloqueadas.has(a.id)}
+                      disabled={areasLoading}
+                      onCheckedChange={(v) =>
+                        setBloqueadas((prev) => {
+                          const next = new Set(prev);
+                          if (v === true) next.delete(a.id); else next.add(a.id);
+                          return next;
+                        })
+                      }
+                    />
+                    {a.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <Button type="submit" className="w-full rounded-full" disabled={saving || areasLoading}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
             Salvar
           </Button>
