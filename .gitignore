@@ -40,3 +40,6 @@ package-lock.json
 
 # Artefatos de teste do Playwright MCP (screenshots, snapshots, logs)
 .playwright-mcp/
+
+# Vercel
+.vercel/
